@@ -35,8 +35,8 @@ A sophisticated desktop application that converts digital images into high-quali
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/halflight.git
-   cd halflight
+   git clone https://github.com/MacSwider/Half-Light.git
+   cd Half-Light
    ```
 
 2. **Install dependencies**
