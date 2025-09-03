@@ -1,0 +1,16 @@
+{
+  "appId": "com.m-swider.HalfLight",
+  "files": ["dist-electron","dist-react"],
+  "extra_Resources": ["dist-electron/preload.cjs"],
+  "icon": "./image.png",
+  "mac": {
+    "target": "dmg"
+  },
+  "linux": {
+    "target":"AppImage",
+    "category": "Utility"
+  },
+  "win":{
+    "target": ["portable","msi"]
+  }
+}
