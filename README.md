@@ -14,7 +14,10 @@ A sophisticated desktop application that converts digital images into high-quali
 ### 🎨 **Advanced Image Processing**
 - **High-Resolution Processing**: Configurable resolution multiplier (1x-10x) for optimal quality
 - **Edge Enhancement**: Unsharp mask algorithm for crisp detail preservation
-- **Geometric Smoothing**: 5x5 kernel smoothing optimized for 3D printing
+- **Multiple Smoothing Methods**: Choose from 3 different smoothing options:
+  - **Geometric**: 5x5 kernel with distance weighting (original)
+  - **Laplacian**: Organic, flowing surfaces with curvature-based smoothing
+  - **None**: No smoothing for maximum detail preservation
 - **Brightness-to-Thickness Mapping**: Intelligent conversion from image brightness to 3D height
 
 
@@ -82,6 +85,8 @@ halflight/
 │       ├── main.ts        # Main process
 │       ├── preload.cts    # IPC bridge
 │       ├── lithophaneProcessor.ts  # Core processing logic
+│       ├── smoothing/     # Image smoothing algorithms
+│       │   └── smoothingAlgorithms.ts  # Multiple smoothing methods
 │       └── services/      # Additional services
 ├── dist/                  # Built application
 ├── dist-electron/         # Compiled Electron code

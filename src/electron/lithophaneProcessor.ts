@@ -4,6 +4,7 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
 import type { LithophaneSettings, ImageProcessingResult } from '../../types.js';
+import { applySmoothing } from './smoothing/smoothingAlgorithms.js';
 
 
 export class LithophaneProcessor {
@@ -106,7 +107,7 @@ export class LithophaneProcessor {
     private async generateSTLContent(imageData: Buffer, settings: LithophaneSettings): Promise<{
         stlContent: string;
     }> {
-        const { width, height, depth, thickness, baseHeight, quality } = settings;
+        const { width, height, depth, thickness, firstLayerHeight, quality, layerHeight } = settings;
         
         // Resolution multiplier for higher quality
         console.log(`DEBUG: Received resolutionMultiplier from settings: ${settings.resolutionMultiplier} (type: ${typeof settings.resolutionMultiplier})`);
@@ -156,8 +157,23 @@ export class LithophaneProcessor {
             maxBrightness = Math.max(maxBrightness, value);
         }
         
-        console.log(`Brightness normalization: min=${minBrightness.toFixed(3)}, max=${maxBrightness.toFixed(3)}`);
-        console.log(`Creating continuous height map with smooth brightness-to-thickness mapping`);
+        console.log(`Original brightness range: min=${minBrightness.toFixed(3)}, max=${maxBrightness.toFixed(3)}`);
+        
+        // DISCRETE LAYER APPROACH: Create quantized thickness levels
+        // First layer (brightest) gets exactly firstLayerHeight thickness, remaining thickness is split into discrete layers
+        const firstLayerThickness = firstLayerHeight; // Brightest layer thickness (e.g., 0.4mm)
+        const remainingThickness = thickness - firstLayerHeight; // Remaining thickness to distribute (e.g., 2.6mm)
+        const numberOfDiscreteLayers = 13; // Number of discrete layers for remaining thickness
+        const layerThicknessIncrement = remainingThickness / numberOfDiscreteLayers; // Thickness per layer (e.g., 2.6/13 = 0.2mm)
+        
+        console.log(`DISCRETE LAYER APPROACH:`);
+        console.log(`- First layer thickness: ${firstLayerThickness.toFixed(3)}mm`);
+        console.log(`- Remaining thickness: ${remainingThickness.toFixed(3)}mm`);
+        console.log(`- Number of additional discrete layers: ${numberOfDiscreteLayers}`);
+        console.log(`- Thickness increment per layer: ${layerThicknessIncrement.toFixed(3)}mm`);
+        console.log(`- Total discrete levels: ${numberOfDiscreteLayers + 1} (including first layer)`);
+        console.log(`- Layer 0 (brightest): ${firstLayerThickness.toFixed(3)}mm`);
+        console.log(`- Layer ${numberOfDiscreteLayers} (darkest): ${thickness.toFixed(3)}mm`);
         console.log(`Total pixels processed: ${brightnessValues.length}`);
         
         // Create continuous height map - smooth brightness-to-thickness mapping
@@ -169,20 +185,33 @@ export class LithophaneProcessor {
                 if (pixelIndex < enhancedBrightness.length) {
                     const brightness = enhancedBrightness[pixelIndex];
                     
-                    // Map brightness to continuous height
-                    // CORRECTED: brightest pixels get thinnest parts (but still need minimum thickness)
-                    // Normalize brightness to 0-1 range, then INVERT
+                    // DISCRETE LAYER APPROACH: Map brightness to quantized thickness levels
+                    // Normalize brightness to 0-1 range, then INVERT (brightest = 0, darkest = 1)
                     const normalizedBrightness = 1 - ((brightness - minBrightness) / (maxBrightness - minBrightness));
                     
-                    // Add minimum thickness for brightest pixels (e.g., 0.2mm) so they have actual volume
-                    const minThickness = 0.2; // Minimum thickness for brightest pixels
-                    const effectiveThickness = thickness - minThickness; // Remaining thickness for variation
+                    // Map normalized brightness to discrete layer index (0 to numberOfDiscreteLayers)
+                    // 0 (brightest) -> layer 0 (first layer) - gets firstLayerThickness
+                    // 1 (darkest) -> layer numberOfDiscreteLayers (thickest layer) - gets full thickness
+                    const layerIndex = Math.floor(normalizedBrightness * (numberOfDiscreteLayers + 1));
+                    const clampedLayerIndex = Math.min(layerIndex, numberOfDiscreteLayers);
                     
-                    // Map inverted brightness to height: 0 (brightest) -> baseHeight + minThickness, 1 (darkest) -> baseHeight + thickness
-                    const heightValue = baseHeight + minThickness + (normalizedBrightness * effectiveThickness);
+                    // Calculate thickness for this discrete layer
+                    // Layer 0 (brightest): firstLayerThickness (e.g., 1.0mm)
+                    // Layer 1: firstLayerThickness + layerThicknessIncrement (e.g., 1.2mm)
+                    // Layer 2: firstLayerThickness + 2 * layerThicknessIncrement (e.g., 1.4mm)
+                    // ... and so on
+                    // Layer numberOfDiscreteLayers (darkest): thickness (e.g., 3.0mm)
+                    let heightValue;
+                    if (clampedLayerIndex === 0) {
+                        // Brightest areas get exactly firstLayerThickness
+                        heightValue = firstLayerThickness;
+                    } else {
+                        // Other areas get firstLayerThickness + additional layers
+                        heightValue = firstLayerThickness + (clampedLayerIndex * layerThicknessIncrement);
+                    }
                     heightMap[y][x] = heightValue;
                 } else {
-                    heightMap[y][x] = baseHeight;
+                    heightMap[y][x] = firstLayerHeight;
                 }
             }
         }
@@ -201,16 +230,19 @@ export class LithophaneProcessor {
             minHeight = Math.min(minHeight, value);
             maxHeight = Math.max(maxHeight, value);
         }
-        console.log(`DEBUG: Height range after continuous mapping: min=${minHeight.toFixed(3)}mm, max=${maxHeight.toFixed(3)}mm`);
-        console.log(`DEBUG: Expected thickness range: ${(baseHeight + 0.2).toFixed(3)}mm to ${(baseHeight + thickness).toFixed(3)}mm`);
+        console.log(`DEBUG: Height range after discrete layer mapping: min=${minHeight.toFixed(3)}mm, max=${maxHeight.toFixed(3)}mm`);
+        console.log(`DEBUG: Expected thickness range: ${firstLayerThickness.toFixed(3)}mm to ${thickness.toFixed(3)}mm`);
         console.log(`DEBUG: Thickness achieved: ${(maxHeight - minHeight).toFixed(3)}mm (target: ${thickness}mm)`);
-        console.log(`DEBUG: Continuous mapping - brightest pixels (0.0) -> ${(baseHeight + 0.2).toFixed(3)}mm (min thickness), darkest pixels (1.0) -> ${(baseHeight + thickness).toFixed(3)}mm`);
+        console.log(`DEBUG: DISCRETE LAYERS - Layer 0 (brightest): ${firstLayerThickness.toFixed(3)}mm, Layer ${numberOfDiscreteLayers} (darkest): ${thickness.toFixed(3)}mm`);
+        console.log(`DEBUG: Layer thickness increment: ${layerThicknessIncrement.toFixed(3)}mm per layer`);
+        console.log(`DEBUG: Total discrete levels: ${numberOfDiscreteLayers + 1} (including first layer)`);
         
                 // Note: Preview generation moved to processImage method
         // No need to generate preview here for STL generation
         
-        // Apply geometric smoothing for better 3D printing (continuous surface smoothing)
-        this.applyGeometricSmoothing(heightMap, internalWidth, internalHeight);
+        // Apply selected smoothing method for better 3D printing
+        const smoothingOptions = settings.smoothing || { method: 'geometric', passes: 2 };
+        applySmoothing(heightMap, internalWidth, internalHeight, smoothingOptions);
 
         // Temporary: Use simple geometry generation to get it working
         const vertices: number[] = [];
@@ -250,11 +282,11 @@ export class LithophaneProcessor {
         const halfWidth = width / 2;
         const halfHeight = height / 2;
         
-        // Define the four corners of the rectangular bottom surface
-        const bottomLeft = [-halfWidth, -halfHeight, baseHeight];
-        const bottomRight = [halfWidth, -halfHeight, baseHeight];
-        const topLeft = [-halfWidth, halfHeight, baseHeight];
-        const topRight = [halfWidth, halfHeight, baseHeight];
+        // Define the four corners of the rectangular bottom surface (at Z=0)
+        const bottomLeft = [-halfWidth, -halfHeight, 0];
+        const bottomRight = [halfWidth, -halfHeight, 0];
+        const topLeft = [-halfWidth, halfHeight, 0];
+        const topRight = [halfWidth, halfHeight, 0];
         
         // First triangle (bottom-left to top-left to bottom-right)
         vertices.push(
@@ -277,11 +309,11 @@ export class LithophaneProcessor {
         for (let y = 0; y < internalHeight - 1; y++) {
             const x1 = -width / 2;
             const y1 = (y / resolutionMultiplier - height / 2);
-            const z1 = baseHeight;
+            const z1 = 0; // Start from bottom (Z=0)
             
             const x2 = -width / 2;
             const y2 = ((y + 1) / resolutionMultiplier - height / 2);
-            const z2 = baseHeight;
+            const z2 = 0; // Start from bottom (Z=0)
             
             const x3 = -width / 2;
             const y3 = (y / resolutionMultiplier - height / 2);
@@ -304,11 +336,11 @@ export class LithophaneProcessor {
         for (let y = 0; y < internalHeight - 1; y++) {
             const x1 = width / 2;
             const y1 = (y / resolutionMultiplier - height / 2);
-            const z1 = baseHeight;
+            const z1 = 0; // Start from bottom (Z=0)
             
             const x2 = width / 2;
             const y2 = ((y + 1) / resolutionMultiplier - height / 2);
-            const z2 = baseHeight;
+            const z2 = 0; // Start from bottom (Z=0)
             
             const x3 = width / 2;
             const y3 = (y / resolutionMultiplier - height / 2);
@@ -331,11 +363,11 @@ export class LithophaneProcessor {
         for (let x = 0; x < internalWidth - 1; x++) {
             const x1 = (x / resolutionMultiplier - width / 2);
             const y1 = -height / 2;
-            const z1 = baseHeight;
+            const z1 = 0; // Start from bottom (Z=0)
             
             const x2 = ((x + 1) / resolutionMultiplier - width / 2);
             const y2 = -height / 2;
-            const z2 = baseHeight;
+            const z2 = 0; // Start from bottom (Z=0)
             
             const x3 = (x / resolutionMultiplier - width / 2);
             const y3 = -height / 2;
@@ -358,11 +390,11 @@ export class LithophaneProcessor {
         for (let x = 0; x < internalWidth - 1; x++) {
             const x1 = (x / resolutionMultiplier - width / 2);
             const y1 = height / 2;
-            const z1 = baseHeight;
+            const z1 = 0; // Start from bottom (Z=0)
             
             const x2 = ((x + 1) / resolutionMultiplier - width / 2);
             const y2 = height / 2;
-            const z2 = baseHeight;
+            const z2 = 0; // Start from bottom (Z=0)
             
             const x3 = (x / resolutionMultiplier - width / 2);
             const y3 = height / 2;
@@ -392,18 +424,18 @@ export class LithophaneProcessor {
             
             // Frame corners (outer) - aligned with actual image dimensions
             const outerCorners = [
-                [-outerWidth/2, -outerHeight/2, baseHeight],           // Bottom-left
-                [outerWidth/2, -outerHeight/2, baseHeight],            // Bottom-right
-                [outerWidth/2, outerHeight/2, baseHeight],             // Top-right
-                [-outerWidth/2, outerHeight/2, baseHeight]             // Top-left
+                [-outerWidth/2, -outerHeight/2, 0],           // Bottom-left
+                [outerWidth/2, -outerHeight/2, 0],            // Bottom-right
+                [outerWidth/2, outerHeight/2, 0],             // Top-right
+                [-outerWidth/2, outerHeight/2, 0]             // Top-left
             ];
             
             // Frame corners (inner - where lithophane sits) - aligned with actual image dimensions
             const innerCorners = [
-                [-width/2, -height/2, baseHeight],  // Bottom-left
-                [width/2, -height/2, baseHeight],   // Bottom-right
-                [width/2, height/2, baseHeight],   // Top-right
-                [-width/2, height/2, baseHeight]   // Top-left
+                [-width/2, -height/2, 0],  // Bottom-left
+                [width/2, -height/2, 0],   // Bottom-right
+                [width/2, height/2, 0],   // Top-right
+                [-width/2, height/2, 0]   // Top-left
             ];
             
             // Generate frame bottom surface (triangulated)
@@ -514,7 +546,7 @@ export class LithophaneProcessor {
         console.log(`STL generation complete:`);
         console.log(`- Total vertices: ${vertices.length / 3}`);
         console.log(`- Final dimensions: ${width}x${height}x${thickness}mm`);
-        console.log(`- Base height: ${baseHeight}mm`);
+        console.log(`- First layer height: ${firstLayerHeight}mm`);
         console.log(`- Height range achieved: ${minHeight.toFixed(3)}mm to ${maxHeight.toFixed(3)}mm`);
         
         return {
@@ -524,53 +556,6 @@ export class LithophaneProcessor {
 
 
 
-    /**
-     * Applies broad geometric smoothing to continuous height maps.
-     * This reduces isolated pixels and creates smoother surfaces for 3D printing.
-     */
-    private applyGeometricSmoothing(heightMap: number[][], width: number, height: number): void {
-        const smoothingPasses = 2;
-        
-        for (let pass = 0; pass < smoothingPasses; pass++) {
-            const smoothedMap: number[][] = [];
-            
-            for (let y = 0; y < height; y++) {
-                smoothedMap[y] = [];
-                for (let x = 0; x < width; x++) {
-                    let sum = 0;
-                    let count = 0;
-                    
-                    // Use a larger 5x5 kernel for broader smoothing
-                    for (let ky = -2; ky <= 2; ky++) {
-                        for (let kx = -2; kx <= 2; kx++) {
-                            const nx = x + kx;
-                            const ny = y + ky;
-                            
-                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                                // Distance-based weighting with falloff
-                                const distance = Math.sqrt(kx * kx + ky * ky);
-                                const weight = distance === 0 ? 8 : 1 / (1 + distance * 0.3);
-                                
-                                sum += heightMap[ny][nx] * weight;
-                                count += weight;
-                            }
-                        }
-                    }
-                    
-                    smoothedMap[y][x] = sum / count;
-                }
-            }
-            
-            // Copy smoothed values back
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    heightMap[y][x] = smoothedMap[y][x];
-                }
-            }
-        }
-        
-        console.log(`Applied geometric smoothing: ${smoothingPasses} passes with 5x5 kernel for 3D printing optimization`);
-    }
 
 
 

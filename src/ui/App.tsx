@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import './App.css';
-import type { ImageProcessingResult, LithophaneSettings } from '../../types';
+import type { ImageProcessingResult } from '../../types';
 
 function App() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -17,9 +17,19 @@ function App() {
   const [layerNumber, setLayerNumber] = useState<string>('8');
   const [resolutionMultiplier, setResolutionMultiplier] = useState<string>('4');
   const [resolutionMultiplierError, setResolutionMultiplierError] = useState<string>('');
+  const [firstLayerHeight, setFirstLayerHeight] = useState<string>('0.4');
+  const [smoothingMethod, setSmoothingMethod] = useState<string>('geometric');
+  const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
 
   // Available layer height options
   const layerHeightOptions = ['0.12', '0.16', '0.2'];
+  
+  // Available smoothing methods
+  const smoothingMethods = [
+    { value: 'geometric', label: 'Geometric (default)', description: '5x5 kernel with distance weighting' },
+    { value: 'laplacian', label: 'Laplacian', description: 'Organic, flowing surfaces' },
+    { value: 'none', label: 'None', description: 'No smoothing - maximum detail preservation' }
+  ];
 
   // Calculate thickness when layer height or layer number changes
   const calculateThickness = (height: string, number: string): string => {
@@ -77,6 +87,26 @@ function App() {
     return true;
   }
 
+  const [firstLayerHeightError, setFirstLayerHeightError] = useState<string>('');
+
+  const validateFirstLayerHeight = (value: string): boolean => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+      setFirstLayerHeightError('First layer height must be a number');
+      return false;
+    }
+    if (numValue <= 0) {
+      setFirstLayerHeightError('First layer height must be greater than 0');
+      return false;
+    }
+    if (numValue > 5) {
+      setFirstLayerHeightError('First layer height must be at most 5mm');
+      return false;
+    }
+    setFirstLayerHeightError('');
+    return true;
+  }
+
   const handleThicknessChange = (value: string) => {
     setThickness(value);
     if (value.trim() === '') {
@@ -122,6 +152,15 @@ function App() {
     }
   };
 
+  const handleFirstLayerHeightChange = (value: string) => {
+    setFirstLayerHeight(value);
+    if (value.trim() === '') {
+      setFirstLayerHeightError('');
+    } else {
+      validateFirstLayerHeight(value);
+    }
+  };
+
 
 
   const handleImageSelect = useCallback(async () => {
@@ -161,11 +200,14 @@ function App() {
   const handleGenerateSTL = useCallback(async () => {
     if (!imagePath) return;
     
-    // Validate thickness and resolution multiplier before proceeding
+    // Validate thickness, resolution multiplier, and first layer height before proceeding
     if (!validateThickness(thickness)) {
       return;
     }
     if (!validateResolutionMultiplier(resolutionMultiplier)) {
+      return;
+    }
+    if (!validateFirstLayerHeight(firstLayerHeight)) {
       return;
     }
     
@@ -180,13 +222,19 @@ function App() {
         height: parseFloat(height),
         depth: 3,
         thickness: parseFloat(thickness),
-        baseHeight: 0, // Changed from 0.8 to 0 for direct thickness control
+        firstLayerHeight: parseFloat(firstLayerHeight), // User-configurable first layer height for brightest layer thickness
         quality: 'high' as const,
         frameEnabled: allowFrame,
         frameWidth: 2.0,
         numberOfLayers: parseInt(layerNumber),
         layerHeight: parseFloat(layerHeight),
-        resolutionMultiplier: parseInt(resolutionMultiplier)
+        resolutionMultiplier: parseInt(resolutionMultiplier),
+        smoothing: {
+          method: smoothingMethod as any,
+          strength: parseFloat(smoothingStrength),
+          passes: smoothingMethod === 'geometric' ? 2 : 3
+        },
+        orientation: 'horizontal' as const
       };
       
       console.log('Using settings:', settings); // Test log
@@ -211,7 +259,7 @@ function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [imagePath, thickness, width, height, allowFrame, resolutionMultiplier, layerNumber, layerHeight]);
+  }, [imagePath, thickness, width, height, allowFrame, resolutionMultiplier, layerNumber, layerHeight, firstLayerHeight, smoothingMethod, smoothingStrength]);
 
   const closePopup = () => {
     setShowPopup(false);
@@ -354,6 +402,27 @@ function App() {
                   <small>Higher values create smoother surfaces but larger files (1-10x)</small>
                 </div>
               </div>
+
+              <div className="setting-item">
+                <label htmlFor="firstLayerHeight">First Layer Height (mm):</label>
+                <input
+                  id="firstLayerHeight"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="5"
+                  value={firstLayerHeight}
+                  onChange={(e) => handleFirstLayerHeightChange(e.target.value)}
+                  className={firstLayerHeightError ? 'error' : ''}
+                  placeholder="0.4"
+                />
+                {firstLayerHeightError && (
+                  <span className="error-message">{firstLayerHeightError}</span>
+                )}
+                <div className="setting-info">
+                  <small>Thickness of the brightest layer (layer 0) - the rest is calculated from remaining thickness</small>
+                </div>
+              </div>
               
               <div className="setting-item">
                 <label htmlFor="thickness">Thickness (mm):</label>
@@ -373,6 +442,43 @@ function App() {
                 )}
               </div>
               
+              <div className="setting-item">
+                <label htmlFor="smoothingMethod">Smoothing Method:</label>
+                <select
+                  id="smoothingMethod"
+                  value={smoothingMethod}
+                  onChange={(e) => setSmoothingMethod(e.target.value)}
+                >
+                  {smoothingMethods.map(method => (
+                    <option key={method.value} value={method.value}>
+                      {method.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="setting-info">
+                  <small>{smoothingMethods.find(m => m.value === smoothingMethod)?.description}</small>
+                </div>
+              </div>
+
+              {smoothingMethod !== 'none' && (
+                <div className="setting-item">
+                  <label htmlFor="smoothingStrength">Smoothing Strength:</label>
+                  <input
+                    id="smoothingStrength"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max="1.0"
+                    value={smoothingStrength}
+                    onChange={(e) => setSmoothingStrength(e.target.value)}
+                    placeholder="0.1"
+                  />
+                  <div className="setting-info">
+                    <small>Higher values = more smoothing (0.01-1.0)</small>
+                  </div>
+                </div>
+              )}
+
               <div className="setting-item">
                 <label htmlFor="allowFrame" className="checkbox-label">
                   <input
@@ -413,7 +519,7 @@ function App() {
               <button
                 className="generate-btn"
                 onClick={handleGenerateSTL}
-                disabled={!imagePath || isProcessing || !!thicknessError || !!resolutionMultiplierError}
+                disabled={!imagePath || isProcessing || !!thicknessError || !!resolutionMultiplierError || !!firstLayerHeightError}
               >
                 🖨️ Generate STL
               </button>
