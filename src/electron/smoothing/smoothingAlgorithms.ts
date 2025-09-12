@@ -13,6 +13,7 @@ export interface SmoothingOptions {
 /**
  * Applies the selected smoothing method to a height map
  */
+
 export function applySmoothing(
     heightMap: number[][], 
     width: number, 

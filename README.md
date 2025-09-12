@@ -14,7 +14,7 @@ A sophisticated desktop application that converts digital images into high-quali
 ### 🎨 **Advanced Image Processing**
 - **High-Resolution Processing**: Configurable resolution multiplier (1x-10x) for optimal quality
 - **Edge Enhancement**: Unsharp mask algorithm for crisp detail preservation
-- **Multiple Smoothing Methods**: Choose from 3 different smoothing options:
+- **Multiple Smoothing Methods**:
   - **Geometric**: 5x5 kernel with distance weighting (original)
   - **Laplacian**: Organic, flowing surfaces with curvature-based smoothing
   - **None**: No smoothing for maximum detail preservation

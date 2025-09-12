@@ -32,6 +32,7 @@ export type LithophaneSettings = {
     resolutionMultiplier: number;
     orientation: 'horizontal' | 'vertical';
     smoothing?: SmoothingOptions;
+    negative?: boolean;
 };
 
 export type ImageProcessingResult = {

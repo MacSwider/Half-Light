@@ -20,6 +20,7 @@ function App() {
   const [firstLayerHeight, setFirstLayerHeight] = useState<string>('0.4');
   const [smoothingMethod, setSmoothingMethod] = useState<string>('geometric');
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
+  const [negative, setNegative] = useState<boolean>(false);
 
   // Available layer height options
   const layerHeightOptions = ['0.12', '0.16', '0.2'];
@@ -234,7 +235,8 @@ function App() {
           strength: parseFloat(smoothingStrength),
           passes: smoothingMethod === 'geometric' ? 2 : 3
         },
-        orientation: 'horizontal' as const
+        orientation: 'horizontal' as const,
+        negative: negative
       };
       
       console.log('Using settings:', settings); // Test log
@@ -259,7 +261,7 @@ function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [imagePath, thickness, width, height, allowFrame, resolutionMultiplier, layerNumber, layerHeight, firstLayerHeight, smoothingMethod, smoothingStrength]);
+  }, [imagePath, thickness, width, height, allowFrame, resolutionMultiplier, layerNumber, layerHeight, firstLayerHeight, smoothingMethod, smoothingStrength, negative]);
 
   const closePopup = () => {
     setShowPopup(false);
@@ -478,6 +480,21 @@ function App() {
                   </div>
                 </div>
               )}
+
+                <div className="setting-item">
+                <label htmlFor="negative">
+                  <input
+                    id="negative"
+                    type="checkbox"
+                    checked={negative}
+                    onChange={(e) => setNegative(e.target.checked)}
+                  />
+                  Invert/Negative
+                </label>
+                <div className="setting-info">
+                  <small>Invert brightness mapping - bright areas become thick, dark areas become thin</small>
+                </div>
+              </div>
 
               <div className="setting-item">
                 <label htmlFor="allowFrame" className="checkbox-label">

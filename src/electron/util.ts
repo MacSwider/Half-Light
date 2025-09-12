@@ -1,5 +1,5 @@
 import {ipcMain} from "electron";
-import WebContents = Electron.WebContents;
+import type { WebContents } from 'electron';
 import {getUIPath} from "./pathResolver.js";
 import {pathToFileURL} from "url";
 import type { EventPayloadMapping } from "../../types.js";

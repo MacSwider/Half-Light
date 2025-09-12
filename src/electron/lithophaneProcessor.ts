@@ -187,7 +187,13 @@ export class LithophaneProcessor {
                     
                     // DISCRETE LAYER APPROACH: Map brightness to quantized thickness levels
                     // Normalize brightness to 0-1 range, then INVERT (brightest = 0, darkest = 1)
-                    const normalizedBrightness = 1 - ((brightness - minBrightness) / (maxBrightness - minBrightness));
+                    let normalizedBrightness = 1 - ((brightness - minBrightness) / (maxBrightness - minBrightness));
+                    
+                    // Apply negative/invert option if enabled
+                    if (settings.negative) {
+                        // Invert: bright areas become thick, dark areas become thin
+                        normalizedBrightness = 1 - normalizedBrightness;
+                    }
                     
                     // Map normalized brightness to discrete layer index (0 to numberOfDiscreteLayers)
                     // 0 (brightest) -> layer 0 (first layer) - gets firstLayerThickness

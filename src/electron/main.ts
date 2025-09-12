@@ -126,12 +126,12 @@ app.on("ready", () => {
     });
 
     // Lithophane processing handlers
-    ipcMain.handle('processImage', async (event, imagePath: string, settings: any) => {
+    ipcMain.handle('processImage', async (_, imagePath: string, settings: any) => {
         const processor = LithophaneProcessor.getInstance();
         return await processor.processImage(imagePath, settings);
     });
 
-    ipcMain.handle('generateSTL', async (event, imagePath: string, settings: any) => {
+    ipcMain.handle('generateSTL', async (_, imagePath: string, settings: any) => {
         console.log('DEBUG: Main process received settings:', settings);
         console.log('DEBUG: Main process resolutionMultiplier:', settings.resolutionMultiplier);
         const processor = LithophaneProcessor.getInstance();
@@ -154,7 +154,7 @@ app.on("ready", () => {
     });
 
     // Image preview handler - convert image to base64
-    ipcMain.handle('getImagePreview', async (event, imagePath: string) => {
+    ipcMain.handle('getImagePreview', async (_, imagePath: string) => {
         try {
             const imageBuffer = readFileSync(imagePath);
             const base64 = imageBuffer.toString('base64');
