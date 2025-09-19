@@ -10,18 +10,29 @@ export type StaticData ={
     totalMemoryGB: number;
 };
 
+export type SmoothingMethod = 'geometric' | 'laplacian' | 'none';
+
+export type SmoothingOptions = {
+    method: SmoothingMethod;
+    strength?: number;
+    passes?: number;
+};
+
 export type LithophaneSettings = {
     width: number;
     height: number;
     depth: number;
     thickness: number;
-    baseHeight: number;
+    firstLayerHeight: number;
     quality: 'low' | 'medium' | 'high';
     frameEnabled: boolean;
     frameWidth: number;
     numberOfLayers: number;
     layerHeight: number;
     resolutionMultiplier: number;
+    orientation: 'horizontal' | 'vertical';
+    smoothing?: SmoothingOptions;
+    negative?: boolean;
 };
 
 export type ImageProcessingResult = {
