@@ -27,6 +27,7 @@ export function applySmoothing(
         case 'laplacian':
             applyLaplacianSmoothing(heightMap, width, height, options);
             break;
+
         case 'none':
             // No smoothing applied - preserve maximum detail
             console.log('No smoothing applied - preserving maximum detail');

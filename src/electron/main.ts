@@ -1,6 +1,5 @@
 import {app, BrowserWindow, ipcMain, dialog, Menu} from 'electron';
 import {isDev} from "./util.js";
-import {getStaticData} from "./resourceManager.js";
 import {getPreloadPath, getUIPath} from "./pathResolver.js";
 import {LithophaneProcessor} from "./lithophaneProcessor.js";
 import { readFileSync } from 'fs';
@@ -119,11 +118,6 @@ app.on("ready", () => {
         mainWindow.loadFile(getUIPath());
     }
 
-    //pollResources(mainWindow);
-
-    ipcMain.handle('getStaticData', () => {
-        return getStaticData();
-    });
 
     // Lithophane processing handlers
     ipcMain.handle('processImage', async (_, imagePath: string, settings: any) => {

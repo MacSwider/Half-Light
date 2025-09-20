@@ -2,12 +2,6 @@ const electron = require("electron");
 import type { EventPayloadMapping } from "../../types.js";
 
 electron.contextBridge.exposeInMainWorld("electron",{
-    subscribeStatistic: (callback) => {
-        ipcOn("statistics", (stats: any) => {
-            callback(stats);
-        })
-    },
-    getStaticData: () => ipcInvoke('getStaticData'),
     processImage: (imagePath: string, settings: any) => ipcInvoke('processImage', imagePath, settings),
     generateSTL: (imagePath: string, settings: any) => ipcInvoke('generateSTL', imagePath, settings),
     selectImage: () => ipcInvoke('selectImage'),

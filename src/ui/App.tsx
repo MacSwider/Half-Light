@@ -17,8 +17,8 @@ function App() {
   const [layerNumber, setLayerNumber] = useState<string>('8');
   const [resolutionMultiplier, setResolutionMultiplier] = useState<string>('4');
   const [resolutionMultiplierError, setResolutionMultiplierError] = useState<string>('');
-  const [firstLayerHeight, setFirstLayerHeight] = useState<string>('0.4');
-  const [smoothingMethod, setSmoothingMethod] = useState<string>('geometric');
+  const [firstLayerHeight, setFirstLayerHeight] = useState<string>('0.8');
+  const [smoothingMethod, setSmoothingMethod] = useState<string>('laplacian');
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
 
@@ -27,7 +27,7 @@ function App() {
   
   // Available smoothing methods
   const smoothingMethods = [
-    { value: 'geometric', label: 'Geometric (default)', description: '5x5 kernel with distance weighting' },
+    { value: 'geometric', label: 'Geometric', description: '5x5 kernel with distance weighting' },
     { value: 'laplacian', label: 'Laplacian', description: 'Organic, flowing surfaces' },
     { value: 'none', label: 'None', description: 'No smoothing - maximum detail preservation' }
   ];

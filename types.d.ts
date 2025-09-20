@@ -1,14 +1,3 @@
-export type Statistics ={
-    cpuUsage:number,
-    ramUsage:number,
-    storageUsage: number
-};
-
-export type StaticData ={
-    totalStorage: number;
-    cpuModel: string;
-    totalMemoryGB: number;
-};
 
 export type SmoothingMethod = 'geometric' | 'laplacian' | 'none';
 
@@ -46,8 +35,6 @@ export type ImageProcessingResult = {
 };
 
 export type EventPayloadMapping ={
-    statistics: Statistics;
-    getStaticData: StaticData;
     processImage: ImageProcessingResult;
     generateSTL: ImageProcessingResult;
     selectImage: string | null;
@@ -57,8 +44,6 @@ export type EventPayloadMapping ={
 declare global {
     interface Window{
         electron: {
-            subscribeStatistic: (callback: (statistic: Statistics) => void ) => void,
-            getStaticData:() => Promise <StaticData>;
             processImage: (imagePath: string, settings: LithophaneSettings) => Promise<ImageProcessingResult>;
             generateSTL: (imagePath: string, settings: LithophaneSettings) => Promise<ImageProcessingResult>;
             selectImage: () => Promise<string | null>;
