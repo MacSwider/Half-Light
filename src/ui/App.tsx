@@ -36,8 +36,10 @@ function App() {
   const calculateThickness = (height: string, number: string): string => {
     const h = parseFloat(height);
     const n = parseFloat(number);
-    if (!isNaN(h) && !isNaN(n) && h > 0 && n > 0) {
-      return (h * n).toFixed(2);
+    const flh = parseFloat(firstLayerHeight);
+    if (!isNaN(h) && !isNaN(n) && !isNaN(flh) && h > 0 && n > 0) {
+      // Total thickness = first layer height + remaining layers * layer height
+      return (flh + h * Math.max(0, n - 1)).toFixed(2);
     }
     return thickness;
   };
@@ -46,8 +48,14 @@ function App() {
   const calculateLayerNumber = (thick: string, height: string): string => {
     const t = parseFloat(thick);
     const h = parseFloat(height);
-    if (!isNaN(t) && !isNaN(h) && h > 0 && t > 0) {
-      return Math.round(t / h).toString();
+    const flh = parseFloat(firstLayerHeight);
+    if (!isNaN(t) && !isNaN(h) && !isNaN(flh) && h > 0 && t > 0) {
+      if (t <= flh) {
+        return '1';
+      }
+      // layers = 1 (first layer) + remaining thickness divided by layer height
+      const remaining = Math.max(0, t - flh);
+      return Math.max(1, 1 + Math.round(remaining / h)).toString();
     }
     return layerNumber;
   };
