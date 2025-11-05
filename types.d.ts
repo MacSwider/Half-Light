@@ -39,6 +39,9 @@ export type EventPayloadMapping ={
     generateSTL: ImageProcessingResult;
     selectImage: string | null;
     getImagePreview: string | null;
+    getTheme: 'light' | 'dark';
+    setTheme: 'light' | 'dark';
+    openSettings: void;
 };
 
 declare global {
@@ -48,6 +51,12 @@ declare global {
             generateSTL: (imagePath: string, settings: LithophaneSettings) => Promise<ImageProcessingResult>;
             selectImage: () => Promise<string | null>;
             getImagePreview: (imagePath: string) => Promise<string | null>;
+            getTheme: () => Promise<'light' | 'dark'>;
+            setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>;
+            openSettings: () => Promise<void>;
+            onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => void;
+            onMenuSelectImage: (callback: () => void) => void;
+            onMenuGenerateSTL: (callback: () => void) => void;
         };
     }
 }

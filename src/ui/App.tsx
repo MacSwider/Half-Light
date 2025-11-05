@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import './App.css';
 import type { ImageProcessingResult } from '../../types';
 
@@ -21,6 +21,32 @@ function App() {
   const [smoothingMethod, setSmoothingMethod] = useState<string>('laplacian');
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [menuError, setMenuError] = useState<string | null>(null);
+  
+  // Track if menu listeners are registered to prevent duplicates
+  const menuListenersRegistered = useRef(false);
+
+  // Initialize theme and set up listeners
+  useEffect(() => {
+    // Get initial theme
+    window.electron.getTheme().then((currentTheme) => {
+      setTheme(currentTheme);
+      document.documentElement.setAttribute('data-theme', currentTheme);
+    });
+
+    // Listen for theme changes from main process
+    window.electron.onThemeChanged((newTheme: 'light' | 'dark') => {
+      setTheme(newTheme);
+      document.documentElement.setAttribute('data-theme', newTheme);
+    });
+
+  }, []); // Theme initialization only
+
+  // Update theme when it changes
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Available layer height options
   const layerHeightOptions = ['0.12', '0.16', '0.2'];
@@ -207,18 +233,51 @@ function App() {
   }, []);
 
   const handleGenerateSTL = useCallback(async () => {
-    if (!imagePath) return;
+    if (!imagePath) {
+      setMenuError('Please select an image first.');
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'No image selected',
+        error: 'Please select an image before generating STL.'
+      });
+      return;
+    }
     
     // Validate thickness, resolution multiplier, and first layer height before proceeding
     if (!validateThickness(thickness)) {
+      setMenuError('Please fix the thickness error before generating STL.');
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: thicknessError || 'Invalid thickness value'
+      });
       return;
     }
     if (!validateResolutionMultiplier(resolutionMultiplier)) {
+      setMenuError('Please fix the resolution multiplier error before generating STL.');
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: resolutionMultiplierError || 'Invalid resolution multiplier value'
+      });
       return;
     }
     if (!validateFirstLayerHeight(firstLayerHeight)) {
+      setMenuError('Please fix the first layer height error before generating STL.');
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: firstLayerHeightError || 'Invalid first layer height value'
+      });
       return;
     }
+    
+    // Clear any previous menu errors
+    setMenuError(null);
     
     setIsProcessing(true);
     setResult(null);
@@ -304,6 +363,31 @@ function App() {
     console.log('Open in Slicer functionality - to be implemented');
     alert('Open in Slicer functionality will be implemented in a future update!');
   };
+
+  // Set up menu action listeners after handlers are defined
+  // Use useRef to ensure we only register once, even if dependencies change
+  useEffect(() => {
+    // Only register if not already registered
+    if (menuListenersRegistered.current) {
+      return;
+    }
+
+    // Register listeners (preload already removes old listeners as a safety measure)
+    window.electron.onMenuSelectImage(() => {
+      handleImageSelect();
+    });
+
+    window.electron.onMenuGenerateSTL(() => {
+      handleGenerateSTL();
+    });
+
+    menuListenersRegistered.current = true;
+
+    // Cleanup function (though listeners persist for app lifetime)
+    return () => {
+      menuListenersRegistered.current = false;
+    };
+  }, [handleImageSelect, handleGenerateSTL]);
 
   return (
     <div className="app">

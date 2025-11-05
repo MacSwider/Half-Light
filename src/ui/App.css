@@ -14,6 +14,12 @@ body {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh;
   color: #333;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="dark"] body {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: rgba(255, 255, 255, 0.87);
 }
 
 .app {
@@ -29,6 +35,12 @@ body {
   text-align: center;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .app-header {
+  background: rgba(30, 30, 46, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .header-content {
@@ -81,6 +93,11 @@ body {
   font-size: 1.1rem;
   color: #666;
   font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+[data-theme="dark"] .app-header p {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .app-main {
@@ -112,6 +129,12 @@ body {
   justify-content: center;
   height: 400px;
   width: 100%;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .image-preview-section {
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .image-preview {
@@ -133,6 +156,11 @@ body {
   text-align: center;
   color: #666;
   font-style: italic;
+  transition: color 0.3s ease;
+}
+
+[data-theme="dark"] .no-image-placeholder {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .no-image-placeholder p {
@@ -153,6 +181,12 @@ body {
   width: 100%;
   position: relative;
   overflow: hidden;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .settings-section {
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .settings-section h2 {
@@ -160,6 +194,11 @@ body {
   margin-bottom: 1.5rem;
   color: #333;
   font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+[data-theme="dark"] .settings-section h2 {
+  color: rgba(255, 255, 255, 0.87);
 }
 
 .settings-content {
@@ -173,6 +212,11 @@ body {
   border-radius: 15px;
   padding: 1rem;
   margin: -1rem;
+  transition: background 0.3s ease;
+}
+
+[data-theme="dark"] .settings-content {
+  background: rgba(30, 30, 46, 0.95);
 }
 
 .settings-content::-webkit-scrollbar {
@@ -203,6 +247,11 @@ body {
   font-weight: 600;
   color: #333;
   font-size: 1rem;
+  transition: color 0.3s ease;
+}
+
+[data-theme="dark"] .setting-item label {
+  color: rgba(255, 255, 255, 0.87);
 }
 
 .setting-item input {
@@ -215,6 +264,12 @@ body {
   color: #333;
 }
 
+[data-theme="dark"] .setting-item input {
+  background: #2a2a3e;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.87);
+}
+
 .setting-item select {
   padding: 0.75rem;
   border: 2px solid #e9ecef;
@@ -224,6 +279,12 @@ body {
   background: white;
   color: #333;
   cursor: pointer;
+}
+
+[data-theme="dark"] .setting-item select {
+  background: #2a2a3e;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.87);
 }
 
 .setting-item input:focus,
@@ -252,6 +313,13 @@ body {
   padding: 0.5rem;
   border-radius: 8px;
   border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+[data-theme="dark"] .setting-info {
+  color: rgba(255, 255, 255, 0.7);
+  background: #2a2a3e;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .checkbox-label {
@@ -262,6 +330,11 @@ body {
   font-weight: 600;
   color: #333;
   font-size: 1rem;
+  transition: color 0.3s ease;
+}
+
+[data-theme="dark"] .checkbox-label {
+  color: rgba(255, 255, 255, 0.87);
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -285,6 +358,12 @@ body {
   align-items: center;
   height: 120px;
   width: 100%;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .bottom-controls {
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .image-selection {
@@ -323,6 +402,11 @@ body {
   width: 90%;
   position: relative;
   animation: popupSlideIn 0.3s ease-out;
+  transition: background 0.3s ease;
+}
+
+[data-theme="dark"] .popup-content {
+  background: #2a2a3e;
 }
 
 .popup-close {
