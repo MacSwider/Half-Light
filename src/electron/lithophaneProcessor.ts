@@ -163,8 +163,14 @@ export class LithophaneProcessor {
         // First layer (brightest) gets exactly firstLayerHeight thickness, remaining thickness is split into discrete layers
         const firstLayerThickness = firstLayerHeight; // Brightest layer thickness (e.g., 0.4mm)
         const remainingThickness = thickness - firstLayerHeight; // Remaining thickness to distribute (e.g., 2.6mm)
-        const numberOfDiscreteLayers = 13; // Number of discrete layers for remaining thickness
-        const layerThicknessIncrement = remainingThickness / numberOfDiscreteLayers; // Thickness per layer (e.g., 2.6/13 = 0.2mm)
+        // Align discrete layers to user's intended count if provided
+        const totalUserLayers = typeof settings.numberOfLayers === 'number' && settings.numberOfLayers > 0
+            ? settings.numberOfLayers
+            : 14; // fallback similar to previous 13+first
+
+        // totalUserLayers includes the first layer. We split the remaining thickness across (totalUserLayers - 1)
+        const numberOfDiscreteLayers = Math.max(1, totalUserLayers - 1);
+        const layerThicknessIncrement = numberOfDiscreteLayers > 0 ? (remainingThickness / numberOfDiscreteLayers) : 0;
         
         console.log(`DISCRETE LAYER APPROACH:`);
         console.log(`- First layer thickness: ${firstLayerThickness.toFixed(3)}mm`);
@@ -249,6 +255,38 @@ export class LithophaneProcessor {
         // Apply selected smoothing method for better 3D printing
         const smoothingOptions = settings.smoothing || { method: 'geometric', passes: 2 };
         applySmoothing(heightMap, internalWidth, internalHeight, smoothingOptions);
+
+        // After smoothing, renormalize to preserve requested min/max thickness
+        // Compute current min/max
+        let currentMin = Infinity;
+        let currentMax = -Infinity;
+        for (let y = 0; y < internalHeight; y++) {
+            for (let x = 0; x < internalWidth; x++) {
+                const v = heightMap[y][x];
+                if (v < currentMin) currentMin = v;
+                if (v > currentMax) currentMax = v;
+            }
+        }
+        // Target range is [firstLayerThickness, thickness]
+        const targetMin = firstLayerThickness;
+        const targetMax = thickness;
+        const srcSpan = currentMax - currentMin;
+        const dstSpan = targetMax - targetMin;
+        if (srcSpan > 1e-6 && dstSpan > 0) {
+            const scale = dstSpan / srcSpan;
+            for (let y = 0; y < internalHeight; y++) {
+                for (let x = 0; x < internalWidth; x++) {
+                    heightMap[y][x] = targetMin + (heightMap[y][x] - currentMin) * scale;
+                }
+            }
+        } else {
+            // Degenerate case: clamp into target bounds
+            for (let y = 0; y < internalHeight; y++) {
+                for (let x = 0; x < internalWidth; x++) {
+                    heightMap[y][x] = Math.min(targetMax, Math.max(targetMin, heightMap[y][x]));
+                }
+            }
+        }
 
         // Temporary: Use simple geometry generation to get it working
         const vertices: number[] = [];

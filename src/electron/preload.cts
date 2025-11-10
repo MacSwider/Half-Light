@@ -2,16 +2,35 @@ const electron = require("electron");
 import type { EventPayloadMapping } from "../../types.js";
 
 electron.contextBridge.exposeInMainWorld("electron",{
-    subscribeStatistic: (callback) => {
-        ipcOn("statistics", (stats: any) => {
-            callback(stats);
-        })
-    },
-    getStaticData: () => ipcInvoke('getStaticData'),
     processImage: (imagePath: string, settings: any) => ipcInvoke('processImage', imagePath, settings),
     generateSTL: (imagePath: string, settings: any) => ipcInvoke('generateSTL', imagePath, settings),
     selectImage: () => ipcInvoke('selectImage'),
     getImagePreview: (imagePath: string) => ipcInvoke('getImagePreview', imagePath),
+    getTheme: () => ipcInvoke('getTheme'),
+    setTheme: (theme: 'light' | 'dark') => ipcInvoke('setTheme', theme),
+    openSettings: () => ipcInvoke('openSettings'),
+    getPreferences: () => ipcInvoke('getPreferences'),
+    getPreference: (key: string) => ipcInvoke('getPreference', key),
+    setPreference: (key: string, value: any) => ipcInvoke('setPreference', key, value),
+    setPreferences: (preferences: any) => ipcInvoke('setPreferences', preferences),
+    resetPreferences: () => ipcInvoke('resetPreferences'),
+    selectSlicer: () => ipcInvoke('selectSlicer'),
+    openInSlicer: (filePathOrContent: string, isContent?: boolean, filename?: string) => ipcInvoke('openInSlicer', filePathOrContent, isContent, filename),
+    onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => {
+        electron.ipcRenderer.on('theme-changed', (_: any, theme: 'light' | 'dark') => callback(theme));
+    },
+    onMenuSelectImage: (callback: () => void) => {
+        // Remove existing listeners to prevent duplicates
+        // This is a safety measure - ideally React should manage this properly
+        electron.ipcRenderer.removeAllListeners('menu-select-image');
+        electron.ipcRenderer.on('menu-select-image', callback);
+    },
+    onMenuGenerateSTL: (callback: () => void) => {
+        // Remove existing listeners to prevent duplicates
+        // This is a safety measure - ideally React should manage this properly
+        electron.ipcRenderer.removeAllListeners('menu-generate-stl');
+        electron.ipcRenderer.on('menu-generate-stl', callback);
+    },
 } satisfies Window["electron"]);
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(

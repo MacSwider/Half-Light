@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import './App.css';
 import type { ImageProcessingResult } from '../../types';
 
@@ -17,17 +17,126 @@ function App() {
   const [layerNumber, setLayerNumber] = useState<string>('8');
   const [resolutionMultiplier, setResolutionMultiplier] = useState<string>('4');
   const [resolutionMultiplierError, setResolutionMultiplierError] = useState<string>('');
-  const [firstLayerHeight, setFirstLayerHeight] = useState<string>('0.4');
-  const [smoothingMethod, setSmoothingMethod] = useState<string>('geometric');
+  const [firstLayerHeight, setFirstLayerHeight] = useState<string>('0.8');
+  const [smoothingMethod, setSmoothingMethod] = useState<string>('laplacian');
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
+  // Track if menu listeners are registered to prevent duplicates
+  const menuListenersRegistered = useRef(false);
+
+  // Load preferences on startup
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const prefs = await window.electron.getPreferences();
+        
+        // Load theme
+        setTheme(prefs.theme);
+        document.documentElement.setAttribute('data-theme', prefs.theme);
+        
+        // Load default settings (only if not already set by user interaction)
+        // We'll use these as initial values
+        if (prefs.defaultThickness) setThickness(prefs.defaultThickness);
+        if (prefs.defaultWidth) setWidth(prefs.defaultWidth);
+        if (prefs.defaultHeight) setHeight(prefs.defaultHeight);
+        if (prefs.defaultLayerHeight) setLayerHeight(prefs.defaultLayerHeight);
+        if (prefs.defaultLayerNumber) setLayerNumber(prefs.defaultLayerNumber);
+        if (prefs.defaultResolutionMultiplier) setResolutionMultiplier(prefs.defaultResolutionMultiplier);
+        if (prefs.defaultFirstLayerHeight) setFirstLayerHeight(prefs.defaultFirstLayerHeight);
+        if (prefs.defaultSmoothingMethod) setSmoothingMethod(prefs.defaultSmoothingMethod);
+        if (prefs.defaultSmoothingStrength) setSmoothingStrength(prefs.defaultSmoothingStrength);
+        if (prefs.defaultAllowFrame !== undefined) setAllowFrame(prefs.defaultAllowFrame);
+        if (prefs.defaultNegative !== undefined) setNegative(prefs.defaultNegative);
+        
+        // Load last image if it exists
+        if (prefs.lastImagePath) {
+          setImagePath(prefs.lastImagePath);
+          try {
+            const previewUrl = await window.electron.getImagePreview(prefs.lastImagePath);
+            if (previewUrl) {
+              setSelectedImage(previewUrl);
+              const img = new Image();
+              img.onload = () => {
+                setWidth(img.width.toString());
+                setHeight(img.height.toString());
+              };
+              img.src = previewUrl;
+            }
+          } catch (error) {
+            console.error('Error loading last image:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading preferences:', error);
+      }
+    };
+
+    loadPreferences();
+
+    // Listen for theme changes from main process
+    window.electron.onThemeChanged((newTheme: 'light' | 'dark') => {
+      setTheme(newTheme);
+      document.documentElement.setAttribute('data-theme', newTheme);
+    });
+  }, []); // Run only once on mount
+
+  // Update theme when it changes
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  // Save preferences when settings change (debounced)
+  const savePreferencesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const savePreferences = useCallback(async () => {
+    if (savePreferencesTimeoutRef.current) {
+      clearTimeout(savePreferencesTimeoutRef.current);
+    }
+    
+    savePreferencesTimeoutRef.current = setTimeout(async () => {
+      try {
+        await window.electron.setPreferences({
+          defaultThickness: thickness,
+          defaultWidth: width,
+          defaultHeight: height,
+          defaultLayerHeight: layerHeight,
+          defaultLayerNumber: layerNumber,
+          defaultResolutionMultiplier: resolutionMultiplier,
+          defaultFirstLayerHeight: firstLayerHeight,
+          defaultSmoothingMethod: smoothingMethod,
+          defaultSmoothingStrength: smoothingStrength,
+          defaultAllowFrame: allowFrame,
+          defaultNegative: negative,
+        });
+      } catch (error) {
+        console.error('Error saving preferences:', error);
+      }
+    }, 1000); // Debounce: save 1 second after last change
+  }, [thickness, width, height, layerHeight, layerNumber, resolutionMultiplier, 
+      firstLayerHeight, smoothingMethod, smoothingStrength, allowFrame, negative]);
+
+  // Save preferences when any setting changes
+  useEffect(() => {
+    // Don't save on initial load
+    if (menuListenersRegistered.current) {
+      savePreferences();
+    }
+    
+    return () => {
+      if (savePreferencesTimeoutRef.current) {
+        clearTimeout(savePreferencesTimeoutRef.current);
+      }
+    };
+  }, [savePreferences]);
 
   // Available layer height options
   const layerHeightOptions = ['0.12', '0.16', '0.2'];
   
   // Available smoothing methods
   const smoothingMethods = [
-    { value: 'geometric', label: 'Geometric (default)', description: '5x5 kernel with distance weighting' },
+    { value: 'geometric', label: 'Geometric', description: '5x5 kernel with distance weighting' },
     { value: 'laplacian', label: 'Laplacian', description: 'Organic, flowing surfaces' },
     { value: 'none', label: 'None', description: 'No smoothing - maximum detail preservation' }
   ];
@@ -36,8 +145,10 @@ function App() {
   const calculateThickness = (height: string, number: string): string => {
     const h = parseFloat(height);
     const n = parseFloat(number);
-    if (!isNaN(h) && !isNaN(n) && h > 0 && n > 0) {
-      return (h * n).toFixed(2);
+    const flh = parseFloat(firstLayerHeight);
+    if (!isNaN(h) && !isNaN(n) && !isNaN(flh) && h > 0 && n > 0) {
+      // Total thickness = first layer height + remaining layers * layer height
+      return (flh + h * Math.max(0, n - 1)).toFixed(2);
     }
     return thickness;
   };
@@ -46,8 +157,14 @@ function App() {
   const calculateLayerNumber = (thick: string, height: string): string => {
     const t = parseFloat(thick);
     const h = parseFloat(height);
-    if (!isNaN(t) && !isNaN(h) && h > 0 && t > 0) {
-      return Math.round(t / h).toString();
+    const flh = parseFloat(firstLayerHeight);
+    if (!isNaN(t) && !isNaN(h) && !isNaN(flh) && h > 0 && t > 0) {
+      if (t <= flh) {
+        return '1';
+      }
+      // layers = 1 (first layer) + remaining thickness divided by layer height
+      const remaining = Math.max(0, t - flh);
+      return Math.max(1, 1 + Math.round(remaining / h)).toString();
     }
     return layerNumber;
   };
@@ -199,16 +316,42 @@ function App() {
   }, []);
 
   const handleGenerateSTL = useCallback(async () => {
-    if (!imagePath) return;
+    if (!imagePath) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'No image selected',
+        error: 'Please select an image before generating STL.'
+      });
+      return;
+    }
     
     // Validate thickness, resolution multiplier, and first layer height before proceeding
     if (!validateThickness(thickness)) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: thicknessError || 'Invalid thickness value'
+      });
       return;
     }
     if (!validateResolutionMultiplier(resolutionMultiplier)) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: resolutionMultiplierError || 'Invalid resolution multiplier value'
+      });
       return;
     }
     if (!validateFirstLayerHeight(firstLayerHeight)) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: firstLayerHeightError || 'Invalid first layer height value'
+      });
       return;
     }
     
@@ -292,10 +435,54 @@ function App() {
   };
 
   const handleOpenInSlicer = async () => {
-    // TODO: Implement slicer integration
-    console.log('Open in Slicer functionality - to be implemented');
-    alert('Open in Slicer functionality will be implemented in a future update!');
+    if (!result?.stlContent) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'No STL file available',
+        error: 'Please generate an STL file first before opening in slicer.'
+      });
+      return;
+    }
+
+    try {
+      await window.electron.openInSlicer(result.stlContent, true, result.suggestedFilename || 'lithophane.stl');
+      // Optionally close the popup after opening in slicer
+      // closePopup();
+    } catch (error) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Failed to open in slicer',
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    }
   };
+
+  // Set up menu action listeners after handlers are defined
+  // Use useRef to ensure we only register once, even if dependencies change
+  useEffect(() => {
+    // Only register if not already registered
+    if (menuListenersRegistered.current) {
+      return;
+    }
+
+    // Register listeners (preload already removes old listeners as a safety measure)
+    window.electron.onMenuSelectImage(() => {
+      handleImageSelect();
+    });
+
+    window.electron.onMenuGenerateSTL(() => {
+      handleGenerateSTL();
+    });
+
+    menuListenersRegistered.current = true;
+
+    // Cleanup function (though listeners persist for app lifetime)
+    return () => {
+      menuListenersRegistered.current = false;
+    };
+  }, [handleImageSelect, handleGenerateSTL]);
 
   return (
     <div className="app">
