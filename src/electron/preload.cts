@@ -9,6 +9,13 @@ electron.contextBridge.exposeInMainWorld("electron",{
     getTheme: () => ipcInvoke('getTheme'),
     setTheme: (theme: 'light' | 'dark') => ipcInvoke('setTheme', theme),
     openSettings: () => ipcInvoke('openSettings'),
+    getPreferences: () => ipcInvoke('getPreferences'),
+    getPreference: (key: string) => ipcInvoke('getPreference', key),
+    setPreference: (key: string, value: any) => ipcInvoke('setPreference', key, value),
+    setPreferences: (preferences: any) => ipcInvoke('setPreferences', preferences),
+    resetPreferences: () => ipcInvoke('resetPreferences'),
+    selectSlicer: () => ipcInvoke('selectSlicer'),
+    openInSlicer: (filePathOrContent: string, isContent?: boolean, filename?: string) => ipcInvoke('openInSlicer', filePathOrContent, isContent, filename),
     onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => {
         electron.ipcRenderer.on('theme-changed', (_: any, theme: 'light' | 'dark') => callback(theme));
     },

@@ -34,6 +34,32 @@ export type ImageProcessingResult = {
     processedImageData?: Buffer;
 };
 
+export type UserPreferences = {
+    theme: 'light' | 'dark';
+    defaultThickness: string;
+    defaultWidth: string;
+    defaultHeight: string;
+    defaultLayerHeight: string;
+    defaultLayerNumber: string;
+    defaultResolutionMultiplier: string;
+    defaultFirstLayerHeight: string;
+    defaultSmoothingMethod: string;
+    defaultSmoothingStrength: string;
+    defaultAllowFrame: boolean;
+    defaultNegative: boolean;
+    windowBounds?: {
+        width: number;
+        height: number;
+        x?: number;
+        y?: number;
+    };
+    lastImagePath?: string;
+    lastSaveDirectory?: string;
+    
+    // Slicer configuration
+    slicerPath?: string;
+};
+
 export type EventPayloadMapping ={
     processImage: ImageProcessingResult;
     generateSTL: ImageProcessingResult;
@@ -42,6 +68,13 @@ export type EventPayloadMapping ={
     getTheme: 'light' | 'dark';
     setTheme: 'light' | 'dark';
     openSettings: void;
+    getPreferences: UserPreferences;
+    getPreference: any;
+    setPreference: any;
+    setPreferences: UserPreferences;
+    resetPreferences: UserPreferences;
+    selectSlicer: string | null;
+    openInSlicer: { success: boolean; filePath?: string };
 };
 
 declare global {
@@ -54,6 +87,13 @@ declare global {
             getTheme: () => Promise<'light' | 'dark'>;
             setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>;
             openSettings: () => Promise<void>;
+            getPreferences: () => Promise<UserPreferences>;
+            getPreference: (key: keyof UserPreferences) => Promise<any>;
+            setPreference: (key: keyof UserPreferences, value: any) => Promise<any>;
+            setPreferences: (preferences: Partial<UserPreferences>) => Promise<UserPreferences>;
+            resetPreferences: () => Promise<UserPreferences>;
+            selectSlicer: () => Promise<string | null>;
+            openInSlicer: (filePathOrContent: string, isContent?: boolean, filename?: string) => Promise<{ success: boolean; filePath?: string }>;
             onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => void;
             onMenuSelectImage: (callback: () => void) => void;
             onMenuGenerateSTL: (callback: () => void) => void;

@@ -22,31 +22,114 @@ function App() {
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [menuError, setMenuError] = useState<string | null>(null);
   
   // Track if menu listeners are registered to prevent duplicates
   const menuListenersRegistered = useRef(false);
 
-  // Initialize theme and set up listeners
+  // Load preferences on startup
   useEffect(() => {
-    // Get initial theme
-    window.electron.getTheme().then((currentTheme) => {
-      setTheme(currentTheme);
-      document.documentElement.setAttribute('data-theme', currentTheme);
-    });
+    const loadPreferences = async () => {
+      try {
+        const prefs = await window.electron.getPreferences();
+        
+        // Load theme
+        setTheme(prefs.theme);
+        document.documentElement.setAttribute('data-theme', prefs.theme);
+        
+        // Load default settings (only if not already set by user interaction)
+        // We'll use these as initial values
+        if (prefs.defaultThickness) setThickness(prefs.defaultThickness);
+        if (prefs.defaultWidth) setWidth(prefs.defaultWidth);
+        if (prefs.defaultHeight) setHeight(prefs.defaultHeight);
+        if (prefs.defaultLayerHeight) setLayerHeight(prefs.defaultLayerHeight);
+        if (prefs.defaultLayerNumber) setLayerNumber(prefs.defaultLayerNumber);
+        if (prefs.defaultResolutionMultiplier) setResolutionMultiplier(prefs.defaultResolutionMultiplier);
+        if (prefs.defaultFirstLayerHeight) setFirstLayerHeight(prefs.defaultFirstLayerHeight);
+        if (prefs.defaultSmoothingMethod) setSmoothingMethod(prefs.defaultSmoothingMethod);
+        if (prefs.defaultSmoothingStrength) setSmoothingStrength(prefs.defaultSmoothingStrength);
+        if (prefs.defaultAllowFrame !== undefined) setAllowFrame(prefs.defaultAllowFrame);
+        if (prefs.defaultNegative !== undefined) setNegative(prefs.defaultNegative);
+        
+        // Load last image if it exists
+        if (prefs.lastImagePath) {
+          setImagePath(prefs.lastImagePath);
+          try {
+            const previewUrl = await window.electron.getImagePreview(prefs.lastImagePath);
+            if (previewUrl) {
+              setSelectedImage(previewUrl);
+              const img = new Image();
+              img.onload = () => {
+                setWidth(img.width.toString());
+                setHeight(img.height.toString());
+              };
+              img.src = previewUrl;
+            }
+          } catch (error) {
+            console.error('Error loading last image:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading preferences:', error);
+      }
+    };
+
+    loadPreferences();
 
     // Listen for theme changes from main process
     window.electron.onThemeChanged((newTheme: 'light' | 'dark') => {
       setTheme(newTheme);
       document.documentElement.setAttribute('data-theme', newTheme);
     });
-
-  }, []); // Theme initialization only
+  }, []); // Run only once on mount
 
   // Update theme when it changes
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Save preferences when settings change (debounced)
+  const savePreferencesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const savePreferences = useCallback(async () => {
+    if (savePreferencesTimeoutRef.current) {
+      clearTimeout(savePreferencesTimeoutRef.current);
+    }
+    
+    savePreferencesTimeoutRef.current = setTimeout(async () => {
+      try {
+        await window.electron.setPreferences({
+          defaultThickness: thickness,
+          defaultWidth: width,
+          defaultHeight: height,
+          defaultLayerHeight: layerHeight,
+          defaultLayerNumber: layerNumber,
+          defaultResolutionMultiplier: resolutionMultiplier,
+          defaultFirstLayerHeight: firstLayerHeight,
+          defaultSmoothingMethod: smoothingMethod,
+          defaultSmoothingStrength: smoothingStrength,
+          defaultAllowFrame: allowFrame,
+          defaultNegative: negative,
+        });
+      } catch (error) {
+        console.error('Error saving preferences:', error);
+      }
+    }, 1000); // Debounce: save 1 second after last change
+  }, [thickness, width, height, layerHeight, layerNumber, resolutionMultiplier, 
+      firstLayerHeight, smoothingMethod, smoothingStrength, allowFrame, negative]);
+
+  // Save preferences when any setting changes
+  useEffect(() => {
+    // Don't save on initial load
+    if (menuListenersRegistered.current) {
+      savePreferences();
+    }
+    
+    return () => {
+      if (savePreferencesTimeoutRef.current) {
+        clearTimeout(savePreferencesTimeoutRef.current);
+      }
+    };
+  }, [savePreferences]);
 
   // Available layer height options
   const layerHeightOptions = ['0.12', '0.16', '0.2'];
@@ -234,7 +317,6 @@ function App() {
 
   const handleGenerateSTL = useCallback(async () => {
     if (!imagePath) {
-      setMenuError('Please select an image first.');
       setShowPopup(true);
       setResult({
         success: false,
@@ -246,7 +328,6 @@ function App() {
     
     // Validate thickness, resolution multiplier, and first layer height before proceeding
     if (!validateThickness(thickness)) {
-      setMenuError('Please fix the thickness error before generating STL.');
       setShowPopup(true);
       setResult({
         success: false,
@@ -256,7 +337,6 @@ function App() {
       return;
     }
     if (!validateResolutionMultiplier(resolutionMultiplier)) {
-      setMenuError('Please fix the resolution multiplier error before generating STL.');
       setShowPopup(true);
       setResult({
         success: false,
@@ -266,7 +346,6 @@ function App() {
       return;
     }
     if (!validateFirstLayerHeight(firstLayerHeight)) {
-      setMenuError('Please fix the first layer height error before generating STL.');
       setShowPopup(true);
       setResult({
         success: false,
@@ -275,9 +354,6 @@ function App() {
       });
       return;
     }
-    
-    // Clear any previous menu errors
-    setMenuError(null);
     
     setIsProcessing(true);
     setResult(null);
@@ -359,9 +435,28 @@ function App() {
   };
 
   const handleOpenInSlicer = async () => {
-    // TODO: Implement slicer integration
-    console.log('Open in Slicer functionality - to be implemented');
-    alert('Open in Slicer functionality will be implemented in a future update!');
+    if (!result?.stlContent) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'No STL file available',
+        error: 'Please generate an STL file first before opening in slicer.'
+      });
+      return;
+    }
+
+    try {
+      await window.electron.openInSlicer(result.stlContent, true, result.suggestedFilename || 'lithophane.stl');
+      // Optionally close the popup after opening in slicer
+      // closePopup();
+    } catch (error) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Failed to open in slicer',
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    }
   };
 
   // Set up menu action listeners after handlers are defined

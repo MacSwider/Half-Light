@@ -1,11 +1,14 @@
-import {app, BrowserWindow, ipcMain, dialog, Menu} from 'electron';
+import {app, BrowserWindow, ipcMain, dialog, Menu, shell} from 'electron';
 import {isDev} from "./util.js";
 import {getPreloadPath, getUIPath} from "./pathResolver.js";
 import {LithophaneProcessor} from "./lithophaneProcessor.js";
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { preferencesManager, type UserPreferences} from "./preferences.js";
+import { spawn, exec } from 'child_process';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 let mainWindow: BrowserWindow | null = null;
-let currentTheme: 'light' | 'dark' = 'light';
 
 app.on("ready", () => {
     // Create the application menu
@@ -103,9 +106,15 @@ app.on("ready", () => {
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
 
+    // Load saved window bounds or use defaults
+    const savedBounds = preferencesManager.getPreference('windowBounds');
+    const windowBounds = savedBounds || { width: 1200, height: 800 };
+
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
+        width: windowBounds.width,
+        height: windowBounds.height,
+        x: windowBounds.x,
+        y: windowBounds.y,
         webPreferences: {
             preload: getPreloadPath(),
             contextIsolation: true,
@@ -113,6 +122,41 @@ app.on("ready", () => {
             sandbox: false,
             webSecurity: true,
         },
+    });
+
+    // Save window bounds on move/resize
+    let saveBoundsTimeout: NodeJS.Timeout | null = null;
+    const saveWindowBounds = () => {
+        if (saveBoundsTimeout) {
+            clearTimeout(saveBoundsTimeout);
+        }
+        saveBoundsTimeout = setTimeout(() => {
+            if (mainWindow) {
+                const bounds = mainWindow.getBounds();
+                preferencesManager.setPreference('windowBounds', {
+                    width: bounds.width,
+                    height: bounds.height,
+                    x: bounds.x,
+                    y: bounds.y,
+                });
+            }
+        }, 500); // Debounce to avoid too many saves
+    };
+
+    mainWindow.on('resized', saveWindowBounds);
+    mainWindow.on('moved', saveWindowBounds);
+
+    // Save window bounds on close
+    mainWindow.on('close', () => {
+        if (mainWindow) {
+            const bounds = mainWindow.getBounds();
+            preferencesManager.setPreference('windowBounds', {
+                width: bounds.width,
+                height: bounds.height,
+                x: bounds.x,
+                y: bounds.y,
+            });
+        }
     });
 
     if(isDev()){
@@ -171,23 +215,132 @@ app.on("ready", () => {
         openSettingsWindow();
     });
 
-    // Theme management handlers
+    // Theme management handlers (now using preferences)
     ipcMain.handle('getTheme', async () => {
-        return currentTheme;
+        return preferencesManager.getPreference('theme');
     });
 
     ipcMain.handle('setTheme', async (_, theme: 'light' | 'dark') => {
-        currentTheme = theme;
+        preferencesManager.setPreference('theme', theme);
         if (mainWindow) {
             mainWindow.webContents.send('theme-changed', theme);
         }
         return theme;
     });
 
+    // Preferences handlers
+    ipcMain.handle('getPreferences', async () => {
+        return preferencesManager.getPreferences();
+    });
+
+    ipcMain.handle('getPreference', async (_, key: keyof UserPreferences) => {
+        return preferencesManager.getPreference(key);
+    });
+
+    ipcMain.handle('setPreference', async (_, key: keyof UserPreferences, value: any) => {
+        preferencesManager.setPreference(key, value);
+        return value;
+    });
+
+    ipcMain.handle('setPreferences', async (_, preferences: Partial<UserPreferences>) => {
+        preferencesManager.setPreferences(preferences);
+        return preferencesManager.getPreferences();
+    });
+
+    ipcMain.handle('resetPreferences', async () => {
+        preferencesManager.resetPreferences();
+        return preferencesManager.getPreferences();
+    });
+
+    // Slicer selection handler
+    ipcMain.handle('selectSlicer', async () => {
+        if (!mainWindow) return null;
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            title: 'Select Slicer Application',
+            filters: [
+                { name: 'Executables', extensions: process.platform === 'win32' ? ['exe'] : process.platform === 'darwin' ? ['app'] : [''] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+        
+        if (!result.canceled && result.filePaths.length > 0) {
+            const slicerPath = result.filePaths[0];
+            preferencesManager.setPreference('slicerPath', slicerPath);
+            return slicerPath;
+        }
+        return null;
+    });
+
+    // Open file in slicer handler (accepts either file path or STL content)
+    ipcMain.handle('openInSlicer', async (_, filePathOrContent: string, isContent: boolean = false, filename?: string) => {
+        const slicerPath = preferencesManager.getPreference('slicerPath');
+        
+        if (!slicerPath) {
+            throw new Error('No slicer application selected. Please select a slicer in Settings.');
+        }
+
+        if (!existsSync(slicerPath)) {
+            throw new Error(`Slicer application not found at: ${slicerPath}. Please update the slicer path in Settings.`);
+        }
+
+        let filePath: string;
+
+        if (isContent) {
+            // Save STL content to temporary file
+            const tempDir = tmpdir();
+            const tempFilename = filename || `lithophane_${Date.now()}.stl`;
+            filePath = join(tempDir, tempFilename);
+            
+            try {
+                writeFileSync(filePath, filePathOrContent, 'utf8');
+            } catch (error: any) {
+                throw new Error(`Failed to save STL file: ${error.message}`);
+            }
+        } else {
+            filePath = filePathOrContent;
+            if (!existsSync(filePath)) {
+                throw new Error(`STL file not found: ${filePath}`);
+            }
+        }
+
+        try {
+            if (process.platform === 'darwin') {
+                // macOS: Use 'open' command for .app bundles
+                spawn('open', ['-a', slicerPath, filePath], { detached: true });
+            } else if (process.platform === 'win32') {
+                // Windows: Use PowerShell to properly handle paths with spaces
+                // PowerShell handles paths with spaces much better than cmd.exe
+                const psCommand = `Start-Process -FilePath "${slicerPath.replace(/"/g, '`"')}" -ArgumentList "${filePath.replace(/"/g, '`"')}"`;
+                exec(`powershell -Command "${psCommand}"`, (error: any) => {
+                    if (error) {
+                        console.error('Error opening slicer:', error);
+                        // Fallback to cmd.exe method if PowerShell fails
+                        const escapedSlicerPath = slicerPath.replace(/"/g, '""');
+                        const escapedFilePath = filePath.replace(/"/g, '""');
+                        const cmdCommand = `start "" "${escapedSlicerPath}" "${escapedFilePath}"`;
+                        exec(cmdCommand, { shell: 'cmd.exe' }, (fallbackError: any) => {
+                            if (fallbackError) {
+                                console.error('Fallback method also failed:', fallbackError);
+                            }
+                        });
+                    }
+                });
+            } else {
+                // Linux: Execute directly
+                spawn(slicerPath, [filePath], { detached: true });
+            }
+            return { success: true, filePath };
+        } catch (error: any) {
+            throw new Error(`Failed to open slicer: ${error.message}`);
+        }
+    });
+
     // Send initial theme to renderer
     mainWindow.webContents.on('did-finish-load', () => {
         if (mainWindow) {
-            mainWindow.webContents.send('theme-changed', currentTheme);
+            const theme = preferencesManager.getPreference('theme');
+            mainWindow.webContents.send('theme-changed', theme);
         }
     });
 });
@@ -197,7 +350,7 @@ function openSettingsWindow() {
     
     const settingsWindow = new BrowserWindow({
         width: 600,
-        height: 400,
+        height: 500,
         title: 'Settings',
         modal: true,
         parent: mainWindow,
@@ -289,6 +442,58 @@ function openSettingsWindow() {
         .theme-toggle button:active {
             transform: translateY(0);
         }
+        .slicer-path {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .slicer-path-display {
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: #666;
+            word-break: break-all;
+            min-height: 2.5rem;
+            display: flex;
+            align-items: center;
+        }
+        [data-theme="dark"] .slicer-path-display {
+            background: #2a2a2a;
+            border-color: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .slicer-path-display.empty {
+            color: #999;
+            font-style: italic;
+        }
+        [data-theme="dark"] .slicer-path-display.empty {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        .slicer-path button {
+            padding: 0.75rem 1.5rem;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            background: #667eea;
+            color: white;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        [data-theme="dark"] .slicer-path button {
+            background: #8a9aff;
+            border-color: #8a9aff;
+            color: #1a1a1a;
+        }
+        .slicer-path button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .slicer-path button:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
@@ -301,14 +506,28 @@ function openSettingsWindow() {
                 <button id="dark-theme">🌙 Dark</button>
             </div>
         </div>
+        <div class="setting-item">
+            <label class="setting-label">Slicer Application</label>
+            <div class="slicer-path">
+                <div id="slicer-path-display" class="slicer-path-display empty">No slicer selected</div>
+                <button id="select-slicer-btn">Select Slicer...</button>
+            </div>
+        </div>
     </div>
     <script>
         let currentTheme = 'light';
+        let currentSlicerPath = null;
         
         // Get initial theme
         window.electron.getTheme().then(theme => {
             currentTheme = theme;
             updateUI();
+        });
+        
+        // Get initial slicer path
+        window.electron.getPreference('slicerPath').then(path => {
+            currentSlicerPath = path;
+            updateSlicerPath();
         });
         
         // Listen for theme changes
@@ -323,12 +542,35 @@ function openSettingsWindow() {
             document.getElementById('dark-theme').classList.toggle('active', currentTheme === 'dark');
         }
         
+        function updateSlicerPath() {
+            const display = document.getElementById('slicer-path-display');
+            if (currentSlicerPath) {
+                display.textContent = currentSlicerPath;
+                display.classList.remove('empty');
+            } else {
+                display.textContent = 'No slicer selected';
+                display.classList.add('empty');
+            }
+        }
+        
         document.getElementById('light-theme').addEventListener('click', () => {
             window.electron.setTheme('light');
         });
         
         document.getElementById('dark-theme').addEventListener('click', () => {
             window.electron.setTheme('dark');
+        });
+        
+        document.getElementById('select-slicer-btn').addEventListener('click', async () => {
+            try {
+                const path = await window.electron.selectSlicer();
+                if (path) {
+                    currentSlicerPath = path;
+                    updateSlicerPath();
+                }
+            } catch (error) {
+                console.error('Error selecting slicer:', error);
+            }
         });
     </script>
 </body>

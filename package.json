@@ -17,6 +17,7 @@
     "dist:linux": "npm run transpile:electron && npm run build &&electron-builder --linux --x64"
   },
   "dependencies": {
+    "electron-store": "^11.0.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sharp": "^0.33.2",
