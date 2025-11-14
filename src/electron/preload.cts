@@ -16,6 +16,7 @@ electron.contextBridge.exposeInMainWorld("electron",{
     resetPreferences: () => ipcInvoke('resetPreferences'),
     selectSlicer: () => ipcInvoke('selectSlicer'),
     openInSlicer: (filePathOrContent: string, isContent?: boolean, filename?: string) => ipcInvoke('openInSlicer', filePathOrContent, isContent, filename),
+    handleDroppedFile: (fileDataBase64: string, fileName: string) => ipcInvoke('handleDroppedFile', fileDataBase64, fileName),
     onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => {
         electron.ipcRenderer.on('theme-changed', (_: any, theme: 'light' | 'dark') => callback(theme));
     },

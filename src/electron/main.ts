@@ -7,6 +7,7 @@ import { preferencesManager, type UserPreferences} from "./preferences.js";
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { writeFile } from 'fs/promises';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -207,6 +208,24 @@ app.on("ready", () => {
         } catch (error) {
             console.error('Error reading image for preview:', error);
             return null;
+        }
+    });
+
+    // Handle dropped files - save temporarily and return path
+    ipcMain.handle('handleDroppedFile', async (_, fileDataBase64: string, fileName: string) => {
+        try {
+            const tempDir = tmpdir();
+            const tempFilename = `dropped_${Date.now()}_${fileName}`;
+            const tempPath = join(tempDir, tempFilename);
+            
+            // Convert base64 string to Buffer and write to temp file
+            const buffer = Buffer.from(fileDataBase64, 'base64');
+            await writeFile(tempPath, buffer);
+            
+            return tempPath;
+        } catch (error) {
+            console.error('Error handling dropped file:', error);
+            throw new Error(`Failed to save dropped file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     });
 

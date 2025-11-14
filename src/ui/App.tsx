@@ -22,6 +22,7 @@ function App() {
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [isDragging, setIsDragging] = useState(false);
   
   // Track if menu listeners are registered to prevent duplicates
   const menuListenersRegistered = useRef(false);
@@ -281,39 +282,129 @@ function App() {
 
 
 
+  const loadImageFromPath = useCallback(async (path: string) => {
+    setImagePath(path);
+    // Save the image path to preferences
+    try {
+      await window.electron.setPreference('lastImagePath', path);
+    } catch (error) {
+      console.error('Error saving image path:', error);
+    }
+    
+    // Get image preview as base64 data URL
+    try {
+      const previewUrl = await window.electron.getImagePreview(path);
+      if (previewUrl) {
+        setSelectedImage(previewUrl);
+        
+        // Get image dimensions and update width/height fields
+        const img = new Image();
+        img.onload = () => {
+          // Set width and height to match image dimensions
+          setWidth(img.width.toString());
+          setHeight(img.height.toString());
+          console.log(`Image loaded: ${img.width}x${img.height} pixels`);
+        };
+        img.src = previewUrl;
+      } else {
+        setSelectedImage(null);
+      }
+    } catch (error) {
+      console.error('Error getting image preview:', error);
+      setSelectedImage(null);
+    }
+    setResult(null);
+  }, []);
+
   const handleImageSelect = useCallback(async () => {
     try {
       const path = await window.electron.selectImage();
       if (path) {
-        setImagePath(path);
-        // Get image preview as base64 data URL
-        try {
-          const previewUrl = await window.electron.getImagePreview(path);
-          if (previewUrl) {
-            setSelectedImage(previewUrl);
-            
-            // Get image dimensions and update width/height fields
-            const img = new Image();
-            img.onload = () => {
-              // Set width and height to match image dimensions
-              setWidth(img.width.toString());
-              setHeight(img.height.toString());
-              console.log(`Image loaded: ${img.width}x${img.height} pixels`);
-            };
-            img.src = previewUrl;
-          } else {
-            setSelectedImage(null);
-          }
-        } catch (error) {
-          console.error('Error getting image preview:', error);
-          setSelectedImage(null);
-        }
-        setResult(null);
+        await loadImageFromPath(path);
       }
     } catch (error) {
       console.error('Error selecting image:', error);
     }
+  }, [loadImageFromPath]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
   }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging to false if we're actually leaving the drop zone
+    // (not just moving between child elements)
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Check if it's an image file
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
+      const fileName = file.name.toLowerCase();
+      const isImage = imageExtensions.some(ext => fileName.endsWith(ext));
+      
+      if (!isImage) {
+        setShowPopup(true);
+        setResult({
+          success: false,
+          message: 'Invalid file type',
+          error: 'Please drop an image file (jpg, jpeg, png, bmp, or gif).'
+        });
+        return;
+      }
+
+      try {
+        // Try to get the file path directly (works in Electron)
+        const filePath = (file as any).path;
+        
+        if (filePath) {
+          // Direct path access works - use it
+          await loadImageFromPath(filePath);
+        } else {
+          // Fallback: read file and send to main process to save temporarily
+          const arrayBuffer = await file.arrayBuffer();
+          // Convert ArrayBuffer to base64 string for reliable IPC transmission
+          // Use chunked approach to avoid call stack overflow for large files
+          const uint8Array = new Uint8Array(arrayBuffer);
+          let binaryString = '';
+          const chunkSize = 8192; // Process in chunks
+          for (let i = 0; i < uint8Array.length; i += chunkSize) {
+            const chunk = uint8Array.subarray(i, i + chunkSize);
+            binaryString += String.fromCharCode.apply(null, Array.from(chunk));
+          }
+          const base64String = btoa(binaryString);
+          const tempPath = await window.electron.handleDroppedFile(base64String, file.name);
+          await loadImageFromPath(tempPath);
+        }
+      } catch (error) {
+        console.error('Error handling dropped file:', error);
+        setShowPopup(true);
+        setResult({
+          success: false,
+          message: 'Error loading file',
+          error: error instanceof Error ? error.message : 'Could not load the dropped file. Please use the file picker instead.'
+        });
+      }
+    }
+  }, [loadImageFromPath]);
 
   const handleGenerateSTL = useCallback(async () => {
     if (!imagePath) {
@@ -498,14 +589,27 @@ function App() {
       <main className="app-main">
         <div className="content-grid">
           {/* Image Preview Section */}
-          <section className="image-preview-section">
+          <section 
+            className={`image-preview-section ${isDragging ? 'drag-over' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             {selectedImage ? (
               <div className="image-preview">
+                {isDragging && (
+                  <div className="drag-overlay">
+                    <p>📥 Drop image here to replace</p>
+                  </div>
+                )}
                 <img src={selectedImage} alt="Selected" />
               </div>
             ) : (
               <div className="no-image-placeholder">
-                <p>No image selected</p>
+                <p>{isDragging ? '📥 Drop image here' : 'No image selected'}</p>
+                {!isDragging && (
+                  <p className="drag-hint">💡 Drag and drop an image here or use the button below</p>
+                )}
               </div>
             )}
           </section>

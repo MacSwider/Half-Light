@@ -75,6 +75,7 @@ export type EventPayloadMapping ={
     resetPreferences: UserPreferences;
     selectSlicer: string | null;
     openInSlicer: { success: boolean; filePath?: string };
+    handleDroppedFile: string;
 };
 
 declare global {
@@ -94,6 +95,7 @@ declare global {
             resetPreferences: () => Promise<UserPreferences>;
             selectSlicer: () => Promise<string | null>;
             openInSlicer: (filePathOrContent: string, isContent?: boolean, filename?: string) => Promise<{ success: boolean; filePath?: string }>;
+            handleDroppedFile: (fileDataBase64: string, fileName: string) => Promise<string>;
             onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => void;
             onMenuSelectImage: (callback: () => void) => void;
             onMenuGenerateSTL: (callback: () => void) => void;
