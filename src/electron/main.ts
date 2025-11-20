@@ -8,6 +8,7 @@ import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { writeFile } from 'fs/promises';
+import { PathValidator } from './utils/pathValidator.js';
 
 let mainWindow: BrowserWindow | null = null;
 
