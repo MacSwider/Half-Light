@@ -20,12 +20,21 @@ A sophisticated desktop application that converts digital images into high-quali
   - **None**: No smoothing for maximum detail preservation
 - **Brightness-to-Thickness Mapping**: Intelligent conversion from image brightness to 3D height
 
+### 🖱️ **User Experience**
+- **Drag & Drop Support**: Simply drag and drop image files directly onto the preview area
+- **File Picker**: Traditional file selection via button or keyboard shortcut (Ctrl/Cmd+O)
+- **Image Preview**: Real-time preview of selected images with automatic dimension detection
+- **Theme Support**: Light and dark themes with persistent preferences
+- **Settings Persistence**: All settings and preferences are automatically saved
+
 
 ### 🔧 **Technical Excellence**
 - **Cross-Platform**: Windows, macOS, and Linux support
 - **Type Safety**: Full TypeScript implementation
 - **Modern Architecture**: Electron + React + Vite stack
 - **Performance Optimized**: Efficient memory usage and processing
+- **IPC Communication**: Secure context isolation with preload scripts
+- **Preferences Management**: Persistent user settings and window state
 
 ## 🚀 Quick Start
 
@@ -72,7 +81,40 @@ npm run dist:linux
 
 ## 📖 Usage Guide
 
-T.B.A
+### Getting Started
+
+1. **Select an Image**
+   - Click the "📁 Choose Image File" button, or
+   - Use the keyboard shortcut `Ctrl+O` (Windows/Linux) or `Cmd+O` (macOS), or
+   - **Drag and drop** an image file directly onto the preview area
+   - Supported formats: JPG, JPEG, PNG, BMP, GIF
+
+2. **Configure Settings**
+   - **Dimensions**: Set width and height in millimeters (auto-filled from image dimensions)
+   - **Thickness**: Total lithophane thickness (0.1-10mm)
+   - **Layer Height**: Printing layer height (0.12, 0.16, or 0.2mm)
+   - **Layer Number**: Number of layers (automatically calculated from thickness)
+   - **Resolution Multiplier**: Quality multiplier (1-10x) - higher values create smoother surfaces
+   - **First Layer Height**: Thickness of the brightest layer (0.1-5mm)
+   - **Smoothing Method**: Choose between Geometric, Laplacian, or None
+   - **Smoothing Strength**: Adjust smoothing intensity (0.01-1.0)
+   - **Negative/Invert**: Toggle to invert brightness mapping
+   - **Allow Frame**: Add a border around the lithophane
+
+3. **Generate STL**
+   - Click "🖨️ Generate STL" or use `Ctrl+G` (Windows/Linux) or `Cmd+G` (macOS)
+   - Wait for processing to complete
+   - Once generated, you can:
+     - **Save STL File**: Download the STL file to your computer
+     - **Open in Slicer**: Directly open the STL in your configured slicer application
+
+### Tips for Best Results
+
+- **Image Quality**: Higher resolution images produce better results
+- **Contrast**: Images with good contrast work best for lithophanes
+- **Resolution Multiplier**: Start with 4x for a good balance of quality and file size
+- **Smoothing**: Use Laplacian smoothing for organic subjects, Geometric for technical images
+- **Thickness**: Thinner lithophanes (0.8-1.2mm) show more detail but are more fragile
 
 ```
 halflight/

@@ -23,7 +23,6 @@ function App() {
   const [negative, setNegative] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isDragging, setIsDragging] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState<{ progress: number; message: string } | null>(null);
   
   // Track if menu listeners are registered to prevent duplicates
   const menuListenersRegistered = useRef(false);

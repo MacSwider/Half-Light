@@ -8,7 +8,6 @@ import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { writeFile } from 'fs/promises';
-import { PathValidator } from './utils/pathValidator.js';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -257,27 +256,9 @@ app.on("ready", () => {
     // Handle dropped files - save temporarily and return path
     ipcMain.handle('handleDroppedFile', async (_, fileDataBase64: string, fileName: string) => {
         try {
-            // Sanitize filename
-            const sanitizedFilename = PathValidator.sanitizeFilename(fileName);
-            if (!sanitizedFilename) {
-                throw new Error('Invalid filename');
-            }
-            
-            // Validate file extension
-            const extValidation = PathValidator.validatePath(sanitizedFilename, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']);
-            if (!extValidation.isValid) {
-                throw new Error(extValidation.error || 'Invalid file type');
-            }
-            
             const tempDir = tmpdir();
-            const tempFilename = `dropped_${Date.now()}_${sanitizedFilename}`;
+            const tempFilename = `dropped_${Date.now()}_${fileName}`;
             const tempPath = join(tempDir, tempFilename);
-            
-            // Validate the final path
-            const pathValidation = PathValidator.validatePathInDirectory(tempPath, tempDir);
-            if (!pathValidation.isValid) {
-                throw new Error(pathValidation.error || 'Invalid path');
-            }
             
             // Convert base64 string to Buffer and write to temp file
             const buffer = Buffer.from(fileDataBase64, 'base64');
