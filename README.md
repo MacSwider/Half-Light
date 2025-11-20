@@ -82,12 +82,17 @@ halflight/
 │   │   ├── App.css        # Styling and responsive design
 │   │   └── main.tsx       # React entry point
 │   └── electron/          # Electron backend
-│       ├── main.ts        # Main process
+│       ├── main.ts        # Main process entry point
 │       ├── preload.cts    # IPC bridge
-│       ├── lithophaneProcessor.ts  # Core processing logic
-│       ├── smoothing/     # Image smoothing algorithms
-│       │   └── smoothingAlgorithms.ts  # Multiple smoothing methods
-│       └── services/      # Additional services
+│       ├── core/          # Core processing logic
+│       │   └── lithophaneProcessor.ts  # STL generation engine
+│       ├── services/      # Application services
+│       │   ├── preferences.ts  # User preferences management
+│       │   └── smoothing/     # Image smoothing algorithms
+│       │       └── smoothingAlgorithms.ts  # Multiple smoothing methods
+│       └── utils/         # Utility functions
+│           ├── pathResolver.ts  # Path resolution utilities
+│           └── util.ts          # General utilities
 ├── dist/                  # Built application
 ├── dist-electron/         # Compiled Electron code
 ├── dist-react/           # Built React app

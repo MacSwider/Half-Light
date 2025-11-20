@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
-import type { LithophaneSettings, ImageProcessingResult } from '../../types.js';
-import { applySmoothing } from './smoothing/smoothingAlgorithms.js';
+import type { LithophaneSettings, ImageProcessingResult } from '../../../types.js';
+import { applySmoothing } from '../services/smoothing/smoothingAlgorithms.js';
 
 
 export class LithophaneProcessor {
@@ -59,8 +59,20 @@ export class LithophaneProcessor {
         }
     }
 
-    public async generateSTL(imagePath: string, settings: LithophaneSettings): Promise<ImageProcessingResult> {
+    public async generateSTL(
+        imagePath: string,
+        settings: LithophaneSettings,
+        progressCallback?: (progress: number, message: string) => void
+    ): Promise<ImageProcessingResult> {
         try {
+            const reportProgress = (progress: number, message: string) => {
+                if (progressCallback) {
+                    progressCallback(progress, message);
+                }
+            };
+
+            reportProgress(5, 'Loading and processing image...');
+            
             // Process the image first to get the high-resolution data
             const processResult = await this.processImage(imagePath, settings);
             if (!processResult.success) {
@@ -85,8 +97,12 @@ export class LithophaneProcessor {
             console.log(`DEBUG: Buffer per pixel: ${processedImage.length / (internalWidth * internalHeight)} bytes per pixel`);
             console.log(`DEBUG: Image dimensions: ${internalWidth}x${internalHeight} (${settings.resolutionMultiplier || 4}x resolution)`);
 
+            reportProgress(20, 'Generating height map...');
+
             // Generate STL using Three.js
-            const result = await this.generateSTLContent(processedImage, settings);
+            const result = await this.generateSTLContent(processedImage, settings, reportProgress);
+            
+            reportProgress(100, 'STL generation complete!');
             
             // Return STL content
             return {
@@ -104,52 +120,113 @@ export class LithophaneProcessor {
         }
     }
 
-    private async generateSTLContent(imageData: Buffer, settings: LithophaneSettings): Promise<{
+    private async generateSTLContent(
+        imageData: Buffer,
+        settings: LithophaneSettings,
+        progressCallback?: (progress: number, message: string) => void
+    ): Promise<{
         stlContent: string;
     }> {
-        const { width, height, depth, thickness, firstLayerHeight, quality, layerHeight } = settings;
-        
-        // Resolution multiplier for higher quality
-        console.log(`DEBUG: Received resolutionMultiplier from settings: ${settings.resolutionMultiplier} (type: ${typeof settings.resolutionMultiplier})`);
-        const resolutionMultiplier = settings.resolutionMultiplier || 4; // Use setting from UI, fallback to 4
-        console.log(`DEBUG: Using resolutionMultiplier: ${resolutionMultiplier}`);
+        const reportProgress = (progress: number, message: string) => {
+            if (progressCallback) {
+                progressCallback(progress, message);
+            }
+        };
+
+        const { width, height, thickness, firstLayerHeight, quality } = settings;
+        const resolutionMultiplier = settings.resolutionMultiplier || 4;
         const internalWidth = width * resolutionMultiplier;
         const internalHeight = height * resolutionMultiplier;
-        const internalThickness = thickness; // Use thickness directly for Z-axis, don't scale XY dimensions
         
-        console.log(`Generating ${quality} quality lithophane: ${internalWidth}x${internalHeight} (${resolutionMultiplier}x resolution from user setting)`);
+        console.log(`Generating ${quality} quality lithophane: ${internalWidth}x${internalHeight} (${resolutionMultiplier}x resolution)`);
         console.log(`Using thickness: ${thickness}mm for Z-axis`);
         console.log(`Image dimensions: ${width}x${height}mm (X and Y axes)`);
         console.log(`Final STL will be: ${width}x${height}x${thickness}mm`);
         
-        // Precompute enhanced brightness from the high-resolution image data
-        const sourceBrightness = new Float32Array(internalWidth * internalHeight);
-        for (let i = 0; i < internalWidth * internalHeight && i < imageData.length; i++) {
+        reportProgress(30, 'Processing image data and enhancing edges...');
+        
+        // Step 1: Process image data to enhanced brightness
+        const enhancedBrightness = this.processImageData(imageData, internalWidth, internalHeight);
+        
+        reportProgress(45, 'Creating height map from brightness values...');
+        
+        // Step 2: Create height map from brightness values
+        const heightMap = this.createHeightMap(
+            enhancedBrightness,
+            internalWidth,
+            internalHeight,
+            settings
+        );
+        
+        reportProgress(60, 'Applying smoothing and normalizing...');
+        
+        // Step 3: Apply smoothing and normalize
+        this.applySmoothingAndNormalize(
+            heightMap,
+            internalWidth,
+            internalHeight,
+            settings
+        );
+        
+        reportProgress(75, 'Generating 3D geometry...');
+        
+        // Step 4: Generate geometry (vertices and normals)
+        const { vertices, normals } = this.generateGeometry(
+            heightMap,
+            internalWidth,
+            internalHeight,
+            width,
+            height,
+            resolutionMultiplier,
+            settings
+        );
+        
+        reportProgress(90, 'Converting to STL format...');
+        
+        // Step 5: Convert to STL format
+        const stlContent = this.verticesToSTL(vertices, normals);
+        
+        console.log(`STL generation complete:`);
+        console.log(`- Total vertices: ${vertices.length / 3}`);
+        console.log(`- Final dimensions: ${width}x${height}x${thickness}mm`);
+        console.log(`- First layer height: ${firstLayerHeight}mm`);
+        
+        return { stlContent };
+    }
+
+    /**
+     * Process image data to extract and enhance brightness values
+     */
+    private processImageData(imageData: Buffer, width: number, height: number): Float32Array {
+        // Convert image data to normalized brightness array
+        const sourceBrightness = new Float32Array(width * height);
+        for (let i = 0; i < width * height && i < imageData.length; i++) {
             sourceBrightness[i] = Math.min(1, Math.max(0, imageData[i] / 255));
         }
 
-        // Apply unsharp mask to boost edges (hardcoded for now)
+        // Apply unsharp mask to enhance edges
         // amount: 1.0 (edge strength), radius: 1 (3x3), threshold: 0.02 (ignore tiny noise)
-        const enhancedBrightness = this.applyUnsharpMask(sourceBrightness, internalWidth, internalHeight, 1.0, 1, 0.02);
+        return this.applyUnsharpMask(sourceBrightness, width, height, 1.0, 1, 0.02);
+    }
 
-        // Process image data to create height map
-        const heightMap: number[][] = [];
+    /**
+     * Create height map from enhanced brightness values using discrete layer approach
+     */
+    private createHeightMap(
+        enhancedBrightness: Float32Array,
+        internalWidth: number,
+        internalHeight: number,
+        settings: LithophaneSettings
+    ): number[][] {
+        const { thickness, firstLayerHeight } = settings;
         
-        // First pass: collect all brightness values for normalization
+        // Collect brightness values for normalization
         const brightnessValues: number[] = [];
-        for (let y = 0; y < internalHeight; y++) {
-            heightMap[y] = [];
-            for (let x = 0; x < internalWidth; x++) {
-                const pixelIndex = y * internalWidth + x;
-                
-                if (pixelIndex < enhancedBrightness.length) {
-                    const brightness = enhancedBrightness[pixelIndex];
-                    brightnessValues.push(brightness);
-                }
-            }
+        for (let i = 0; i < enhancedBrightness.length; i++) {
+            brightnessValues.push(enhancedBrightness[i]);
         }
         
-        // Calculate min/max brightness for normalization - avoid stack overflow with large arrays
+        // Calculate min/max brightness for normalization
         let minBrightness = Infinity;
         let maxBrightness = -Infinity;
         for (const value of brightnessValues) {
@@ -159,16 +236,12 @@ export class LithophaneProcessor {
         
         console.log(`Original brightness range: min=${minBrightness.toFixed(3)}, max=${maxBrightness.toFixed(3)}`);
         
-        // DISCRETE LAYER APPROACH: Create quantized thickness levels
-        // First layer (brightest) gets exactly firstLayerHeight thickness, remaining thickness is split into discrete layers
-        const firstLayerThickness = firstLayerHeight; // Brightest layer thickness (e.g., 0.4mm)
-        const remainingThickness = thickness - firstLayerHeight; // Remaining thickness to distribute (e.g., 2.6mm)
-        // Align discrete layers to user's intended count if provided
+        // Calculate discrete layer parameters
+        const firstLayerThickness = firstLayerHeight;
+        const remainingThickness = thickness - firstLayerHeight;
         const totalUserLayers = typeof settings.numberOfLayers === 'number' && settings.numberOfLayers > 0
             ? settings.numberOfLayers
-            : 14; // fallback similar to previous 13+first
-
-        // totalUserLayers includes the first layer. We split the remaining thickness across (totalUserLayers - 1)
+            : 14;
         const numberOfDiscreteLayers = Math.max(1, totalUserLayers - 1);
         const layerThicknessIncrement = numberOfDiscreteLayers > 0 ? (remainingThickness / numberOfDiscreteLayers) : 0;
         
@@ -178,49 +251,34 @@ export class LithophaneProcessor {
         console.log(`- Number of additional discrete layers: ${numberOfDiscreteLayers}`);
         console.log(`- Thickness increment per layer: ${layerThicknessIncrement.toFixed(3)}mm`);
         console.log(`- Total discrete levels: ${numberOfDiscreteLayers + 1} (including first layer)`);
-        console.log(`- Layer 0 (brightest): ${firstLayerThickness.toFixed(3)}mm`);
-        console.log(`- Layer ${numberOfDiscreteLayers} (darkest): ${thickness.toFixed(3)}mm`);
-        console.log(`Total pixels processed: ${brightnessValues.length}`);
         
-        // Create continuous height map - smooth brightness-to-thickness mapping
+        // Create height map
+        const heightMap: number[][] = [];
         for (let y = 0; y < internalHeight; y++) {
+            heightMap[y] = [];
             for (let x = 0; x < internalWidth; x++) {
                 const pixelIndex = y * internalWidth + x;
                 
-                // Ensure we don't go out of bounds
                 if (pixelIndex < enhancedBrightness.length) {
                     const brightness = enhancedBrightness[pixelIndex];
                     
-                    // DISCRETE LAYER APPROACH: Map brightness to quantized thickness levels
                     // Normalize brightness to 0-1 range, then INVERT (brightest = 0, darkest = 1)
                     let normalizedBrightness = 1 - ((brightness - minBrightness) / (maxBrightness - minBrightness));
                     
                     // Apply negative/invert option if enabled
                     if (settings.negative) {
-                        // Invert: bright areas become thick, dark areas become thin
                         normalizedBrightness = 1 - normalizedBrightness;
                     }
                     
-                    // Map normalized brightness to discrete layer index (0 to numberOfDiscreteLayers)
-                    // 0 (brightest) -> layer 0 (first layer) - gets firstLayerThickness
-                    // 1 (darkest) -> layer numberOfDiscreteLayers (thickest layer) - gets full thickness
+                    // Map to discrete layer index
                     const layerIndex = Math.floor(normalizedBrightness * (numberOfDiscreteLayers + 1));
                     const clampedLayerIndex = Math.min(layerIndex, numberOfDiscreteLayers);
                     
                     // Calculate thickness for this discrete layer
-                    // Layer 0 (brightest): firstLayerThickness (e.g., 1.0mm)
-                    // Layer 1: firstLayerThickness + layerThicknessIncrement (e.g., 1.2mm)
-                    // Layer 2: firstLayerThickness + 2 * layerThicknessIncrement (e.g., 1.4mm)
-                    // ... and so on
-                    // Layer numberOfDiscreteLayers (darkest): thickness (e.g., 3.0mm)
-                    let heightValue;
-                    if (clampedLayerIndex === 0) {
-                        // Brightest areas get exactly firstLayerThickness
-                        heightValue = firstLayerThickness;
-                    } else {
-                        // Other areas get firstLayerThickness + additional layers
-                        heightValue = firstLayerThickness + (clampedLayerIndex * layerThicknessIncrement);
-                    }
+                    const heightValue = clampedLayerIndex === 0
+                        ? firstLayerThickness
+                        : firstLayerThickness + (clampedLayerIndex * layerThicknessIncrement);
+                    
                     heightMap[y][x] = heightValue;
                 } else {
                     heightMap[y][x] = firstLayerHeight;
@@ -228,36 +286,26 @@ export class LithophaneProcessor {
             }
         }
         
-        // Log height range for debugging - avoid stack overflow with large arrays
-        const heightValues: number[] = [];
-        for (let y = 0; y < internalHeight; y++) {
-            for (let x = 0; x < internalWidth; x++) {
-                heightValues.push(heightMap[y][x]);
-            }
-        }
-        // Calculate min/max without spread operator to avoid stack overflow
-        let minHeight = Infinity;
-        let maxHeight = -Infinity;
-        for (const value of heightValues) {
-            minHeight = Math.min(minHeight, value);
-            maxHeight = Math.max(maxHeight, value);
-        }
-        console.log(`DEBUG: Height range after discrete layer mapping: min=${minHeight.toFixed(3)}mm, max=${maxHeight.toFixed(3)}mm`);
-        console.log(`DEBUG: Expected thickness range: ${firstLayerThickness.toFixed(3)}mm to ${thickness.toFixed(3)}mm`);
-        console.log(`DEBUG: Thickness achieved: ${(maxHeight - minHeight).toFixed(3)}mm (target: ${thickness}mm)`);
-        console.log(`DEBUG: DISCRETE LAYERS - Layer 0 (brightest): ${firstLayerThickness.toFixed(3)}mm, Layer ${numberOfDiscreteLayers} (darkest): ${thickness.toFixed(3)}mm`);
-        console.log(`DEBUG: Layer thickness increment: ${layerThicknessIncrement.toFixed(3)}mm per layer`);
-        console.log(`DEBUG: Total discrete levels: ${numberOfDiscreteLayers + 1} (including first layer)`);
+        return heightMap;
+    }
+
+    /**
+     * Apply smoothing to height map and normalize to preserve thickness range
+     */
+    private applySmoothingAndNormalize(
+        heightMap: number[][],
+        internalWidth: number,
+        internalHeight: number,
+        settings: LithophaneSettings
+    ): void {
+        const { thickness, firstLayerHeight } = settings;
+        const firstLayerThickness = firstLayerHeight;
         
-                // Note: Preview generation moved to processImage method
-        // No need to generate preview here for STL generation
-        
-        // Apply selected smoothing method for better 3D printing
+        // Apply selected smoothing method
         const smoothingOptions = settings.smoothing || { method: 'geometric', passes: 2 };
         applySmoothing(heightMap, internalWidth, internalHeight, smoothingOptions);
 
-        // After smoothing, renormalize to preserve requested min/max thickness
-        // Compute current min/max
+        // Renormalize to preserve requested min/max thickness
         let currentMin = Infinity;
         let currentMax = -Infinity;
         for (let y = 0; y < internalHeight; y++) {
@@ -267,11 +315,12 @@ export class LithophaneProcessor {
                 if (v > currentMax) currentMax = v;
             }
         }
-        // Target range is [firstLayerThickness, thickness]
+        
         const targetMin = firstLayerThickness;
         const targetMax = thickness;
         const srcSpan = currentMax - currentMin;
         const dstSpan = targetMax - targetMin;
+        
         if (srcSpan > 1e-6 && dstSpan > 0) {
             const scale = dstSpan / srcSpan;
             for (let y = 0; y < internalHeight; y++) {
@@ -287,15 +336,58 @@ export class LithophaneProcessor {
                 }
             }
         }
+    }
 
-        // Temporary: Use simple geometry generation to get it working
+    /**
+     * Generate 3D geometry (vertices and normals) from height map
+     */
+    private generateGeometry(
+        heightMap: number[][],
+        internalWidth: number,
+        internalHeight: number,
+        width: number,
+        height: number,
+        resolutionMultiplier: number,
+        settings: LithophaneSettings
+    ): { vertices: number[]; normals: number[] } {
         const vertices: number[] = [];
         const normals: number[] = [];
         
-        // Simple top surface generation - use high-res coordinates scaled to actual dimensions
+        // Generate top surface
+        this.addTopSurface(vertices, normals, heightMap, internalWidth, internalHeight, width, height, resolutionMultiplier);
+        
+        // Generate bottom surface
+        this.addBottomSurface(vertices, normals, width, height);
+        
+        // Generate side walls
+        this.addSideWalls(vertices, normals, heightMap, internalWidth, internalHeight, width, height, resolutionMultiplier);
+        
+        // Generate frame if enabled
+        if (settings.frameEnabled) {
+            this.addFrame(vertices, normals, width, height, settings.thickness, settings.frameWidth || 2.0);
+        }
+        
+        console.log('Geometry generated:', { verticesCount: vertices.length, normalsCount: normals.length });
+        this.logCoordinateRanges(vertices);
+        
+        return { vertices, normals };
+    }
+
+    /**
+     * Add top surface geometry from height map
+     */
+    private addTopSurface(
+        vertices: number[],
+        normals: number[],
+        heightMap: number[][],
+        internalWidth: number,
+        internalHeight: number,
+        width: number,
+        height: number,
+        resolutionMultiplier: number
+    ): void {
         for (let y = 0; y < internalHeight - 1; y++) {
             for (let x = 0; x < internalWidth - 1; x++) {
-                // Scale high-res coordinates to actual image dimensions
                 const x1 = (x / resolutionMultiplier - width / 2);
                 const y1 = (y / resolutionMultiplier - height / 2);
                 const z1 = heightMap[y][x];
@@ -321,18 +413,26 @@ export class LithophaneProcessor {
                 normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
             }
         }
-        
-        // Add bottom surface (flat base) - optimized to use only 2 triangles for the entire rectangular surface
+    }
+
+    /**
+     * Add flat bottom surface geometry
+     */
+    private addBottomSurface(
+        vertices: number[],
+        normals: number[],
+        width: number,
+        height: number
+    ): void {
         const halfWidth = width / 2;
         const halfHeight = height / 2;
         
-        // Define the four corners of the rectangular bottom surface (at Z=0)
         const bottomLeft = [-halfWidth, -halfHeight, 0];
         const bottomRight = [halfWidth, -halfHeight, 0];
         const topLeft = [-halfWidth, halfHeight, 0];
         const topRight = [halfWidth, halfHeight, 0];
         
-        // First triangle (bottom-left to top-left to bottom-right)
+        // First triangle
         vertices.push(
             bottomLeft[0], bottomLeft[1], bottomLeft[2],
             topLeft[0], topLeft[1], topLeft[2],
@@ -340,24 +440,37 @@ export class LithophaneProcessor {
         );
         normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1);
         
-        // Second triangle (bottom-right to top-left to top-right)
+        // Second triangle
         vertices.push(
             bottomRight[0], bottomRight[1], bottomRight[2],
             topLeft[0], topLeft[1], topLeft[2],
             topRight[0], topRight[1], topRight[2]
         );
         normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1);
+    }
 
-        // Add side walls to create a solid volume (essential for 3D printing)
-        // Left wall (negative X) - use high-res coordinates scaled to actual dimensions
+    /**
+     * Add side walls geometry (left, right, top, bottom)
+     */
+    private addSideWalls(
+        vertices: number[],
+        normals: number[],
+        heightMap: number[][],
+        internalWidth: number,
+        internalHeight: number,
+        width: number,
+        height: number,
+        resolutionMultiplier: number
+    ): void {
+        // Left wall (negative X)
         for (let y = 0; y < internalHeight - 1; y++) {
             const x1 = -width / 2;
             const y1 = (y / resolutionMultiplier - height / 2);
-            const z1 = 0; // Start from bottom (Z=0)
+            const z1 = 0;
             
             const x2 = -width / 2;
             const y2 = ((y + 1) / resolutionMultiplier - height / 2);
-            const z2 = 0; // Start from bottom (Z=0)
+            const z2 = 0;
             
             const x3 = -width / 2;
             const y3 = (y / resolutionMultiplier - height / 2);
@@ -367,24 +480,22 @@ export class LithophaneProcessor {
             const y4 = ((y + 1) / resolutionMultiplier - height / 2);
             const z4 = heightMap[y + 1][0];
             
-            // First triangle (facing negative X)
             vertices.push(x1, y1, z1, x2, y2, z2, x3, y3, z3);
             normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0);
             
-            // Second triangle
             vertices.push(x2, y2, z2, x4, y4, z4, x3, y3, z3);
             normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0);
         }
 
-        // Right wall (positive X) - use high-res coordinates scaled to actual dimensions
+        // Right wall (positive X)
         for (let y = 0; y < internalHeight - 1; y++) {
             const x1 = width / 2;
             const y1 = (y / resolutionMultiplier - height / 2);
-            const z1 = 0; // Start from bottom (Z=0)
+            const z1 = 0;
             
             const x2 = width / 2;
             const y2 = ((y + 1) / resolutionMultiplier - height / 2);
-            const z2 = 0; // Start from bottom (Z=0)
+            const z2 = 0;
             
             const x3 = width / 2;
             const y3 = (y / resolutionMultiplier - height / 2);
@@ -394,24 +505,22 @@ export class LithophaneProcessor {
             const y4 = ((y + 1) / resolutionMultiplier - height / 2);
             const z4 = heightMap[y + 1][internalWidth - 1];
             
-            // First triangle (facing positive X)
             vertices.push(x1, y1, z1, x3, y3, z3, x2, y2, z2);
             normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0);
             
-            // Second triangle
             vertices.push(x2, y2, z2, x3, y3, z3, x4, y4, z4);
             normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0);
         }
 
-        // Bottom wall (negative Y) - use actual image dimensions for XY, thickness for Z
+        // Bottom wall (negative Y)
         for (let x = 0; x < internalWidth - 1; x++) {
             const x1 = (x / resolutionMultiplier - width / 2);
             const y1 = -height / 2;
-            const z1 = 0; // Start from bottom (Z=0)
+            const z1 = 0;
             
             const x2 = ((x + 1) / resolutionMultiplier - width / 2);
             const y2 = -height / 2;
-            const z2 = 0; // Start from bottom (Z=0)
+            const z2 = 0;
             
             const x3 = (x / resolutionMultiplier - width / 2);
             const y3 = -height / 2;
@@ -421,24 +530,22 @@ export class LithophaneProcessor {
             const y4 = -height / 2;
             const z4 = heightMap[0][x + 1];
             
-            // First triangle (facing negative Y)
             vertices.push(x1, y1, z1, x3, y3, z3, x2, y2, z2);
             normals.push(0, -1, 0, 0, -1, 0, 0, -1, 0);
             
-            // Second triangle
             vertices.push(x2, y2, z2, x3, y3, z3, x4, y4, z4);
             normals.push(0, -1, 0, 0, -1, 0, 0, -1, 0);
         }
 
-        // Top wall (positive Y) - use actual image dimensions for XY, thickness for Z
+        // Top wall (positive Y)
         for (let x = 0; x < internalWidth - 1; x++) {
             const x1 = (x / resolutionMultiplier - width / 2);
             const y1 = height / 2;
-            const z1 = 0; // Start from bottom (Z=0)
+            const z1 = 0;
             
             const x2 = ((x + 1) / resolutionMultiplier - width / 2);
             const y2 = height / 2;
-            const z2 = 0; // Start from bottom (Z=0)
+            const z2 = 0;
             
             const x3 = (x / resolutionMultiplier - width / 2);
             const y3 = height / 2;
@@ -448,160 +555,142 @@ export class LithophaneProcessor {
             const y4 = height / 2;
             const z4 = heightMap[internalHeight - 1][x + 1];
             
-            // First triangle (facing positive Y)
             vertices.push(x1, y1, z1, x2, y2, z2, x3, y3, z3);
             normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
             
-            // Second triangle
             vertices.push(x2, y2, z2, x4, y4, z4, x3, y3, z3);
             normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
         }
-        
-        // Add frame around the edges - use thickness setting instead of hardcoded 5mm
-        if (settings.frameEnabled) {
-            const frameWidth = settings.frameWidth || 2.0; // Use frameWidth from settings
-            const frameHeight = thickness + 1.0; // Frame height: model thickness + 1mm
-            
-            // Frame dimensions based on internal lithophane size (actual image dimensions)
-            const outerWidth = width + frameWidth * 2;
-            const outerHeight = height + frameWidth * 2;
-            
-            // Frame corners (outer) - aligned with actual image dimensions
-            const outerCorners = [
-                [-outerWidth/2, -outerHeight/2, 0],           // Bottom-left
-                [outerWidth/2, -outerHeight/2, 0],            // Bottom-right
-                [outerWidth/2, outerHeight/2, 0],             // Top-right
-                [-outerWidth/2, outerHeight/2, 0]             // Top-left
-            ];
-            
-            // Frame corners (inner - where lithophane sits) - aligned with actual image dimensions
-            const innerCorners = [
-                [-width/2, -height/2, 0],  // Bottom-left
-                [width/2, -height/2, 0],   // Bottom-right
-                [width/2, height/2, 0],   // Top-right
-                [-width/2, height/2, 0]   // Top-left
-            ];
-            
-            // Generate frame bottom surface (triangulated)
-            for (let i = 0; i < 4; i++) {
-                const next = (i + 1) % 4;
-                
-                // First triangle
-                vertices.push(
-                    outerCorners[i][0], outerCorners[i][1], outerCorners[i][2],
-                    outerCorners[next][0], outerCorners[next][1], outerCorners[next][2],
-                    innerCorners[i][0], innerCorners[i][1], innerCorners[i][2]
-                );
-                normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1); // Facing down
-                
-                // Second triangle
-                vertices.push(
-                    outerCorners[next][0], outerCorners[next][1], outerCorners[next][2],
-                    innerCorners[next][0], innerCorners[next][1], innerCorners[next][2],
-                    innerCorners[i][0], innerCorners[i][1], innerCorners[i][2]
-                );
-                normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1); // Facing down
-            }
-            
-            // Generate frame top surface (raised)
-            for (let i = 0; i < 4; i++) {
-                const next = (i + 1) % 4;
-                
-                // First triangle
-                vertices.push(
-                    outerCorners[i][0], outerCorners[i][1], outerCorners[i][2] + frameHeight,
-                    innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight,
-                    outerCorners[next][0], outerCorners[next][1], outerCorners[next][2] + frameHeight
-                );
-                normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1); // Facing up
-                
-                // Second triangle
-                vertices.push(
-                    outerCorners[next][0], outerCorners[next][1], outerCorners[next][2] + frameHeight,
-                    innerCorners[next][0], innerCorners[next][1], innerCorners[next][2] + frameHeight,
-                    innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight
-                );
-                normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1); // Facing up
-            }
-            
-            // Generate frame side walls
-            for (let i = 0; i < 4; i++) {
-                const next = (i + 1) % 4;
-                
-                // Outer wall
-                vertices.push(
-                    outerCorners[i][0], outerCorners[i][1], outerCorners[i][2],
-                    outerCorners[i][0], outerCorners[i][1], outerCorners[i][2] + frameHeight,
-                    outerCorners[next][0], outerCorners[next][1], outerCorners[next][2]
-                );
-                normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0); // Simple normal
-                
-                vertices.push(
-                    outerCorners[next][0], outerCorners[next][1], outerCorners[next][2],
-                    outerCorners[i][0], outerCorners[i][1], outerCorners[i][2] + frameHeight,
-                    outerCorners[next][0], outerCorners[next][1], outerCorners[next][2] + frameHeight
-                );
-                normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0); // Simple normal
-                
-                // Inner wall
-                vertices.push(
-                    innerCorners[i][0], innerCorners[i][1], innerCorners[i][2],
-                    innerCorners[next][0], innerCorners[next][1], innerCorners[next][2],
-                    innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight
-                );
-                normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0); // Simple normal
-                
-                vertices.push(
-                    innerCorners[next][0], innerCorners[next][1], innerCorners[next][2],
-                    innerCorners[next][0], innerCorners[next][1], innerCorners[next][2] + frameHeight,
-                    innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight
-                );
-                normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0); // Simple normal
-            }
-        }
-        
-        console.log('Geometry with frame generated:', { verticesCount: vertices.length, normalsCount: normals.length });
-        
-        // Debug: Log coordinate ranges
-        if (vertices.length > 0) {
-            let minX = Infinity, maxX = -Infinity;
-            let minY = Infinity, maxY = -Infinity;
-            let minZ = Infinity, maxZ = -Infinity;
-            
-            for (let i = 0; i < vertices.length; i += 3) {
-                minX = Math.min(minX, vertices[i]);
-                maxX = Math.max(maxX, vertices[i]);
-                minY = Math.min(minY, vertices[i + 1]);
-                maxY = Math.max(maxY, vertices[i + 1]);
-                minZ = Math.min(minZ, vertices[i + 2]);
-                maxZ = Math.max(maxZ, vertices[i + 2]);
-            }
-            
-            console.log('STL coordinate ranges:', {
-                X: `${minX.toFixed(2)} to ${maxX.toFixed(2)} (span: ${(maxX - minX).toFixed(2)}mm)`,
-                Y: `${minY.toFixed(2)} to ${maxY.toFixed(2)} (span: ${(maxY - minY).toFixed(2)}mm)`,
-                Z: `${minZ.toFixed(2)} to ${maxZ.toFixed(2)} (span: ${(maxZ - minZ).toFixed(2)}mm)`
-            });
-        }
-        
-        // Generate STL content from vertices and normals
-        const stlContent = this.verticesToSTL(vertices, normals);
-        
-        console.log(`STL generation complete:`);
-        console.log(`- Total vertices: ${vertices.length / 3}`);
-        console.log(`- Final dimensions: ${width}x${height}x${thickness}mm`);
-        console.log(`- First layer height: ${firstLayerHeight}mm`);
-        console.log(`- Height range achieved: ${minHeight.toFixed(3)}mm to ${maxHeight.toFixed(3)}mm`);
-        
-        return {
-            stlContent: stlContent
-        };
     }
 
+    /**
+     * Add frame geometry around the edges
+     */
+    private addFrame(
+        vertices: number[],
+        normals: number[],
+        width: number,
+        height: number,
+        thickness: number,
+        frameWidth: number
+    ): void {
+        const frameHeight = thickness + 1.0;
+        const outerWidth = width + frameWidth * 2;
+        const outerHeight = height + frameWidth * 2;
+        
+        const outerCorners = [
+            [-outerWidth/2, -outerHeight/2, 0],
+            [outerWidth/2, -outerHeight/2, 0],
+            [outerWidth/2, outerHeight/2, 0],
+            [-outerWidth/2, outerHeight/2, 0]
+        ];
+        
+        const innerCorners = [
+            [-width/2, -height/2, 0],
+            [width/2, -height/2, 0],
+            [width/2, height/2, 0],
+            [-width/2, height/2, 0]
+        ];
+        
+        // Frame bottom surface
+        for (let i = 0; i < 4; i++) {
+            const next = (i + 1) % 4;
+            
+            vertices.push(
+                outerCorners[i][0], outerCorners[i][1], outerCorners[i][2],
+                outerCorners[next][0], outerCorners[next][1], outerCorners[next][2],
+                innerCorners[i][0], innerCorners[i][1], innerCorners[i][2]
+            );
+            normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1);
+            
+            vertices.push(
+                outerCorners[next][0], outerCorners[next][1], outerCorners[next][2],
+                innerCorners[next][0], innerCorners[next][1], innerCorners[next][2],
+                innerCorners[i][0], innerCorners[i][1], innerCorners[i][2]
+            );
+            normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1);
+        }
+        
+        // Frame top surface
+        for (let i = 0; i < 4; i++) {
+            const next = (i + 1) % 4;
+            
+            vertices.push(
+                outerCorners[i][0], outerCorners[i][1], outerCorners[i][2] + frameHeight,
+                innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight,
+                outerCorners[next][0], outerCorners[next][1], outerCorners[next][2] + frameHeight
+            );
+            normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+            
+            vertices.push(
+                outerCorners[next][0], outerCorners[next][1], outerCorners[next][2] + frameHeight,
+                innerCorners[next][0], innerCorners[next][1], innerCorners[next][2] + frameHeight,
+                innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight
+            );
+            normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+        }
+        
+        // Frame side walls
+        for (let i = 0; i < 4; i++) {
+            const next = (i + 1) % 4;
+            
+            // Outer wall
+            vertices.push(
+                outerCorners[i][0], outerCorners[i][1], outerCorners[i][2],
+                outerCorners[i][0], outerCorners[i][1], outerCorners[i][2] + frameHeight,
+                outerCorners[next][0], outerCorners[next][1], outerCorners[next][2]
+            );
+            normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0);
+            
+            vertices.push(
+                outerCorners[next][0], outerCorners[next][1], outerCorners[next][2],
+                outerCorners[i][0], outerCorners[i][1], outerCorners[i][2] + frameHeight,
+                outerCorners[next][0], outerCorners[next][1], outerCorners[next][2] + frameHeight
+            );
+            normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0);
+            
+            // Inner wall
+            vertices.push(
+                innerCorners[i][0], innerCorners[i][1], innerCorners[i][2],
+                innerCorners[next][0], innerCorners[next][1], innerCorners[next][2],
+                innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight
+            );
+            normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0);
+            
+            vertices.push(
+                innerCorners[next][0], innerCorners[next][1], innerCorners[next][2],
+                innerCorners[next][0], innerCorners[next][1], innerCorners[next][2] + frameHeight,
+                innerCorners[i][0], innerCorners[i][1], innerCorners[i][2] + frameHeight
+            );
+            normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0);
+        }
+    }
 
-
-
-
+    /**
+     * Log coordinate ranges for debugging
+     */
+    private logCoordinateRanges(vertices: number[]): void {
+        if (vertices.length === 0) return;
+        
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        let minZ = Infinity, maxZ = -Infinity;
+        
+        for (let i = 0; i < vertices.length; i += 3) {
+            minX = Math.min(minX, vertices[i]);
+            maxX = Math.max(maxX, vertices[i]);
+            minY = Math.min(minY, vertices[i + 1]);
+            maxY = Math.max(maxY, vertices[i + 1]);
+            minZ = Math.min(minZ, vertices[i + 2]);
+            maxZ = Math.max(maxZ, vertices[i + 2]);
+        }
+        
+        console.log('STL coordinate ranges:', {
+            X: `${minX.toFixed(2)} to ${maxX.toFixed(2)} (span: ${(maxX - minX).toFixed(2)}mm)`,
+            Y: `${minY.toFixed(2)} to ${maxY.toFixed(2)} (span: ${(maxY - minY).toFixed(2)}mm)`,
+            Z: `${minZ.toFixed(2)} to ${maxZ.toFixed(2)} (span: ${(maxZ - minZ).toFixed(2)}mm)`
+        });
+    }
 
     /**
      * Apply unsharp mask to a normalized grayscale buffer (0..1) to enhance edges.
@@ -706,3 +795,4 @@ export class LithophaneProcessor {
         return stl;
     }
 }
+

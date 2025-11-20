@@ -1,1 +1,0 @@
-// Resource monitoring functionality removed - was unused in production

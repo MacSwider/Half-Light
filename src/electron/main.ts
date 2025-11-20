@@ -1,12 +1,17 @@
 import {app, BrowserWindow, ipcMain, dialog, Menu, shell} from 'electron';
-import {isDev} from "./util.js";
-import {getPreloadPath, getUIPath} from "./pathResolver.js";
-import {LithophaneProcessor} from "./lithophaneProcessor.js";
+import {isDev} from "./utils/util.js";
+import {getPreloadPath, getUIPath} from "./utils/pathResolver.js";
+import {LithophaneProcessor} from "./core/lithophaneProcessor.js";
 import { readFileSync, existsSync, writeFileSync } from 'fs';
-import { preferencesManager, type UserPreferences} from "./preferences.js";
+import { preferencesManager, type UserPreferences} from "./services/preferences.js";
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { tmpdir } from 'os';
+<<<<<<< Updated upstream
+=======
+import { writeFile } from 'fs/promises';
+import { PathValidator } from './utils/pathValidator.js';
+>>>>>>> Stashed changes
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -177,8 +182,36 @@ app.on("ready", () => {
     ipcMain.handle('generateSTL', async (_, imagePath: string, settings: any) => {
         console.log('DEBUG: Main process received settings:', settings);
         console.log('DEBUG: Main process resolutionMultiplier:', settings.resolutionMultiplier);
+        
+        // Validate image path
+        const pathValidation = PathValidator.validatePathExists(imagePath);
+        if (!pathValidation.isValid) {
+            return {
+                success: false,
+                message: 'Invalid image path',
+                error: pathValidation.error
+            };
+        }
+        
+        const imageExtValidation = PathValidator.validatePath(imagePath, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']);
+        if (!imageExtValidation.isValid) {
+            return {
+                success: false,
+                message: 'Invalid image file',
+                error: imageExtValidation.error
+            };
+        }
+        
         const processor = LithophaneProcessor.getInstance();
-        return await processor.generateSTL(imagePath, settings);
+        
+        // Set up progress callback
+        const progressCallback = (progress: number, message: string) => {
+            if (mainWindow) {
+                mainWindow.webContents.send('stl-generation-progress', { progress, message });
+            }
+        };
+        
+        return await processor.generateSTL(imagePath, settings, progressCallback);
     });
 
     // File dialog handler for image selection
@@ -200,6 +233,20 @@ app.on("ready", () => {
     // Image preview handler - convert image to base64
     ipcMain.handle('getImagePreview', async (_, imagePath: string) => {
         try {
+            // Basic validation - check if file exists
+            if (!existsSync(imagePath)) {
+                console.error('Image file does not exist:', imagePath);
+                return null;
+            }
+            
+            // Validate extension (less strict - just check extension)
+            const ext = PathValidator.getFileExtension(imagePath).toLowerCase();
+            const allowedExts = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
+            if (!ext || !allowedExts.includes(ext)) {
+                console.error('Invalid image extension:', ext);
+                return null;
+            }
+            
             const imageBuffer = readFileSync(imagePath);
             const base64 = imageBuffer.toString('base64');
             const mimeType = getMimeType(imagePath);
@@ -210,6 +257,45 @@ app.on("ready", () => {
         }
     });
 
+<<<<<<< Updated upstream
+=======
+    // Handle dropped files - save temporarily and return path
+    ipcMain.handle('handleDroppedFile', async (_, fileDataBase64: string, fileName: string) => {
+        try {
+            // Sanitize filename
+            const sanitizedFilename = PathValidator.sanitizeFilename(fileName);
+            if (!sanitizedFilename) {
+                throw new Error('Invalid filename');
+            }
+            
+            // Validate file extension
+            const extValidation = PathValidator.validatePath(sanitizedFilename, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']);
+            if (!extValidation.isValid) {
+                throw new Error(extValidation.error || 'Invalid file type');
+            }
+            
+            const tempDir = tmpdir();
+            const tempFilename = `dropped_${Date.now()}_${sanitizedFilename}`;
+            const tempPath = join(tempDir, tempFilename);
+            
+            // Validate the final path
+            const pathValidation = PathValidator.validatePathInDirectory(tempPath, tempDir);
+            if (!pathValidation.isValid) {
+                throw new Error(pathValidation.error || 'Invalid path');
+            }
+            
+            // Convert base64 string to Buffer and write to temp file
+            const buffer = Buffer.from(fileDataBase64, 'base64');
+            await writeFile(tempPath, buffer);
+            
+            return tempPath;
+        } catch (error) {
+            console.error('Error handling dropped file:', error);
+            throw new Error(`Failed to save dropped file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    });
+
+>>>>>>> Stashed changes
     // Settings window handler
     ipcMain.handle('openSettings', async () => {
         openSettingsWindow();
@@ -280,7 +366,9 @@ app.on("ready", () => {
             throw new Error('No slicer application selected. Please select a slicer in Settings.');
         }
 
-        if (!existsSync(slicerPath)) {
+        // Validate slicer path
+        const slicerPathValidation = PathValidator.validatePathExists(slicerPath);
+        if (!slicerPathValidation.isValid) {
             throw new Error(`Slicer application not found at: ${slicerPath}. Please update the slicer path in Settings.`);
         }
 
@@ -289,8 +377,15 @@ app.on("ready", () => {
         if (isContent) {
             // Save STL content to temporary file
             const tempDir = tmpdir();
-            const tempFilename = filename || `lithophane_${Date.now()}.stl`;
-            filePath = join(tempDir, tempFilename);
+            const sanitizedFilename = filename ? PathValidator.sanitizeFilename(filename) : `lithophane_${Date.now()}.stl`;
+            const finalFilename = sanitizedFilename.endsWith('.stl') ? sanitizedFilename : `${sanitizedFilename}.stl`;
+            filePath = join(tempDir, finalFilename);
+            
+            // Validate path
+            const pathValidation = PathValidator.validatePathInDirectory(filePath, tempDir);
+            if (!pathValidation.isValid) {
+                throw new Error(pathValidation.error || 'Invalid file path');
+            }
             
             try {
                 writeFileSync(filePath, filePathOrContent, 'utf8');
@@ -299,8 +394,16 @@ app.on("ready", () => {
             }
         } else {
             filePath = filePathOrContent;
-            if (!existsSync(filePath)) {
-                throw new Error(`STL file not found: ${filePath}`);
+            
+            // Validate STL file path
+            const pathValidation = PathValidator.validatePathExists(filePath);
+            if (!pathValidation.isValid) {
+                throw new Error(pathValidation.error || `STL file not found: ${filePath}`);
+            }
+            
+            const extValidation = PathValidator.validatePath(filePath, ['.stl']);
+            if (!extValidation.isValid) {
+                throw new Error('Invalid file type. Expected STL file.');
             }
         }
 

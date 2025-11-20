@@ -2,7 +2,7 @@ import {ipcMain} from "electron";
 import type { WebContents } from 'electron';
 import {getUIPath} from "./pathResolver.js";
 import {pathToFileURL} from "url";
-import type { EventPayloadMapping } from "../../types.js";
+import type { EventPayloadMapping } from "../../../types.js";
 
 export function isDev():boolean{
     return process.env.NODE_ENV === "development";
