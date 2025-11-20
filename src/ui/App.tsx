@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import './App.css';
 import type { ImageProcessingResult } from '../../types';
 
+
 function App() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imagePath, setImagePath] = useState<string>('');
@@ -23,6 +24,7 @@ function App() {
   const [negative, setNegative] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isDragging, setIsDragging] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{ progress: number; message: string } | null>(null);
   
   // Track if menu listeners are registered to prevent duplicates
   const menuListenersRegistered = useRef(false);
