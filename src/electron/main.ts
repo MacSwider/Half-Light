@@ -7,11 +7,8 @@ import { preferencesManager, type UserPreferences} from "./services/preferences.
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { tmpdir } from 'os';
-<<<<<<< Updated upstream
-=======
 import { writeFile } from 'fs/promises';
 import { PathValidator } from './utils/pathValidator.js';
->>>>>>> Stashed changes
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -257,8 +254,6 @@ app.on("ready", () => {
         }
     });
 
-<<<<<<< Updated upstream
-=======
     // Handle dropped files - save temporarily and return path
     ipcMain.handle('handleDroppedFile', async (_, fileDataBase64: string, fileName: string) => {
         try {
@@ -295,7 +290,6 @@ app.on("ready", () => {
         }
     });
 
->>>>>>> Stashed changes
     // Settings window handler
     ipcMain.handle('openSettings', async () => {
         openSettingsWindow();
