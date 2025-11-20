@@ -99,6 +99,7 @@ declare global {
             onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => void;
             onMenuSelectImage: (callback: () => void) => void;
             onMenuGenerateSTL: (callback: () => void) => void;
+            onSTLGenerationProgress: (callback: (progress: { progress: number; message: string }) => void) => void;
         };
     }
 }

@@ -32,6 +32,10 @@ electron.contextBridge.exposeInMainWorld("electron",{
         electron.ipcRenderer.removeAllListeners('menu-generate-stl');
         electron.ipcRenderer.on('menu-generate-stl', callback);
     },
+    onSTLGenerationProgress: (callback: (progress: { progress: number; message: string }) => void) => {
+        electron.ipcRenderer.removeAllListeners('stl-generation-progress');
+        electron.ipcRenderer.on('stl-generation-progress', (_: any, data: { progress: number; message: string }) => callback(data));
+    },
 } satisfies Window["electron"]);
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(

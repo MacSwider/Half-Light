@@ -448,6 +448,7 @@ function App() {
     
     setIsProcessing(true);
     setResult(null);
+    setGenerationProgress({ progress: 0, message: 'Starting STL generation...' });
     setShowPopup(true);
     
     try {
@@ -494,6 +495,7 @@ function App() {
       });
     } finally {
       setIsProcessing(false);
+      setGenerationProgress(null);
     }
   }, [imagePath, thickness, width, height, allowFrame, resolutionMultiplier, layerNumber, layerHeight, firstLayerHeight, smoothingMethod, smoothingStrength, negative]);
 
@@ -550,7 +552,7 @@ function App() {
     }
   };
 
-  // Set up menu action listeners after handlers are defined
+    // Set up menu action listeners after handlers are defined
   // Use useRef to ensure we only register once, even if dependencies change
   useEffect(() => {
     // Only register if not already registered
@@ -565,6 +567,11 @@ function App() {
 
     window.electron.onMenuGenerateSTL(() => {
       handleGenerateSTL();
+    });
+
+    // Set up progress listener
+    window.electron.onSTLGenerationProgress((progressData) => {
+      setGenerationProgress(progressData);
     });
 
     menuListenersRegistered.current = true;
@@ -845,7 +852,13 @@ function App() {
             {isProcessing && (
               <div className="processing-status">
                 <div className="spinner"></div>
-                <p>Generating high-quality STL file...</p>
+                <p>{generationProgress?.message || 'Generating high-quality STL file...'}</p>
+                {generationProgress && (
+                  <div className="progress-bar-container">
+                    <div className="progress-bar" style={{ width: `${generationProgress.progress}%` }}></div>
+                    <span className="progress-text">{Math.round(generationProgress.progress)}%</span>
+                  </div>
+                )}
                 <p className="settings-info">Using thickness: {thickness} mm, resolution: {resolutionMultiplier}x</p>
               </div>
             )}
