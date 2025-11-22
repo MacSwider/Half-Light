@@ -1,0 +1,227 @@
+/* High Contrast Theme Styles */
+[data-theme="high-contrast"] {
+  color-scheme: dark;
+  color: #ffff00;
+  background-color: #000000;
+}
+
+[data-theme="high-contrast"] body {
+  background: #000000;
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .app-header {
+  background: #000000;
+  border-bottom: 2px solid #ffff00;
+  box-shadow: 0 2px 0 0 #ffff00;
+}
+
+[data-theme="high-contrast"] .app-header h1 {
+  color: #ffff00;
+  -webkit-text-fill-color: #ffff00;
+}
+
+[data-theme="high-contrast"] .app-header p {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .image-preview-section {
+  background: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00;
+}
+
+[data-theme="high-contrast"] .no-image-placeholder {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .settings-section {
+  background: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00;
+}
+
+[data-theme="high-contrast"] .settings-section h2 {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .settings-content {
+  background: #000000;
+}
+
+[data-theme="high-contrast"] .setting-item label {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .setting-item input,
+[data-theme="high-contrast"] .setting-item select {
+  background: #000000;
+  border-color: #ffff00;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px #ffff00;
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .setting-item input:focus,
+[data-theme="high-contrast"] .setting-item select:focus {
+  border-color: #ffff00;
+  box-shadow: 0 0 0 1px #ffff00, 0 0 0 3px rgba(255, 255, 0, 0.5);
+}
+
+[data-theme="high-contrast"] .setting-info {
+  color: #ffff00;
+  background: #000000;
+  border-color: #ffff00;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px #ffff00;
+}
+
+[data-theme="high-contrast"] .checkbox-label {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .checkbox-label input[type="checkbox"] {
+  accent-color: #ffff00;
+  filter: brightness(1.5);
+}
+
+[data-theme="high-contrast"] .bottom-controls {
+  background: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00;
+}
+
+[data-theme="high-contrast"] .popup-content {
+  background: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00;
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .popup-close {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .popup-close:hover {
+  background: #ffff00;
+  color: #000000;
+}
+
+[data-theme="high-contrast"] .progress-bar-container {
+  background: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00;
+}
+
+[data-theme="high-contrast"] .progress-bar {
+  background: #ffff00;
+}
+
+[data-theme="high-contrast"] .progress-text {
+  color: #000000;
+  font-weight: 700;
+}
+
+[data-theme="high-contrast"] .result.success,
+[data-theme="high-contrast"] .result.error {
+  background: #000000;
+  border-color: #ffff00;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px #ffff00;
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .select-image-btn {
+  background: #ffff00;
+  color: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00, 0 4px 15px rgba(255, 255, 0, 0.6);
+}
+
+[data-theme="high-contrast"] .change-image-btn {
+  background: #000000;
+  color: #ffff00;
+  border-color: #ffff00;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px #ffff00;
+}
+
+[data-theme="high-contrast"] .change-image-btn:hover {
+  background: #ffff00;
+  color: #000000;
+}
+
+[data-theme="high-contrast"] .generate-btn {
+  background: #ffff00;
+  color: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00, 0 4px 15px rgba(255, 255, 0, 0.6);
+}
+
+[data-theme="high-contrast"] .generate-btn:hover:not(:disabled) {
+  background: #ffff00;
+  box-shadow: 0 6px 20px rgba(255, 255, 0, 0.8);
+}
+
+[data-theme="high-contrast"] .generate-btn:disabled {
+  opacity: 0.5;
+  background: #333300;
+  color: #666600;
+}
+
+[data-theme="high-contrast"] .save-file-btn {
+  background: #ffff00;
+  color: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00, 0 4px 15px rgba(255, 255, 0, 0.6);
+}
+
+[data-theme="high-contrast"] .save-file-btn:hover {
+  box-shadow: 0 6px 20px rgba(255, 255, 0, 0.8);
+}
+
+[data-theme="high-contrast"] .open-slicer-btn {
+  background: #ffff00;
+  color: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00, 0 4px 15px rgba(255, 255, 0, 0.6);
+}
+
+[data-theme="high-contrast"] .open-slicer-btn:hover {
+  box-shadow: 0 6px 20px rgba(255, 255, 0, 0.8);
+}
+
+[data-theme="high-contrast"] .file-info {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .processing-status {
+  background: #000000;
+  border: 3px solid #ffff00;
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .processing-status p {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .settings-info {
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .spinner {
+  border-color: #ffff00;
+  border-top-color: #000000;
+}
+
+[data-theme="high-contrast"] .stl-path {
+  background: #000000;
+  border: 2px solid #ffff00;
+  box-shadow: 0 0 0 1px #ffff00;
+  color: #ffff00;
+}
+
+[data-theme="high-contrast"] .error-message {
+  color: #ffff00;
+}
+

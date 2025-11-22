@@ -7,7 +7,7 @@ electron.contextBridge.exposeInMainWorld("electron",{
     selectImage: () => ipcInvoke('selectImage'),
     getImagePreview: (imagePath: string) => ipcInvoke('getImagePreview', imagePath),
     getTheme: () => ipcInvoke('getTheme'),
-    setTheme: (theme: 'light' | 'dark') => ipcInvoke('setTheme', theme),
+    setTheme: (theme: 'light' | 'dark' | 'high-contrast') => ipcInvoke('setTheme', theme),
     openSettings: () => ipcInvoke('openSettings'),
     getPreferences: () => ipcInvoke('getPreferences'),
     getPreference: (key: string) => ipcInvoke('getPreference', key),
@@ -16,8 +16,8 @@ electron.contextBridge.exposeInMainWorld("electron",{
     resetPreferences: () => ipcInvoke('resetPreferences'),
     selectSlicer: () => ipcInvoke('selectSlicer'),
     openInSlicer: (filePathOrContent: string, isContent?: boolean, filename?: string) => ipcInvoke('openInSlicer', filePathOrContent, isContent, filename),
-    onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => {
-        electron.ipcRenderer.on('theme-changed', (_: any, theme: 'light' | 'dark') => callback(theme));
+    onThemeChanged: (callback: (theme: 'light' | 'dark' | 'high-contrast') => void) => {
+        electron.ipcRenderer.on('theme-changed', (_: any, theme: 'light' | 'dark' | 'high-contrast') => callback(theme));
     },
     onMenuSelectImage: (callback: () => void) => {
         // Remove existing listeners to prevent duplicates

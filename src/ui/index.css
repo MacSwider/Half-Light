@@ -29,9 +29,12 @@ a:hover {
 body {
   margin: 0;
   display: flex;
-  place-items: center;
+  flex-direction: column;
   min-width: 320px;
   min-height: 100vh;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
 }
 
 h1 {
@@ -67,4 +70,19 @@ button:focus-visible {
 
 [data-theme="dark"] button {
   background-color: #1a1a1a;
+}
+
+/* High contrast theme */
+[data-theme="high-contrast"] {
+  color-scheme: dark;
+  color: #ffff00;
+  background-color: #000000;
+}
+
+[data-theme="high-contrast"] button {
+  background-color: #000000;
+  color: #ffff00;
+  border-color: #ffff00;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px #ffff00;
 }

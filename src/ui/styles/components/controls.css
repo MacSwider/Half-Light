@@ -1,0 +1,108 @@
+/* Controls Component Styles */
+.bottom-controls {
+  grid-column: 1 / -1;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: clamp(1rem, 2vw, 2rem);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 120px;
+  width: 100%;
+  flex-shrink: 0;
+  transition: background 0.3s ease, border-color 0.3s ease;
+  gap: 1rem;
+}
+
+.image-selection {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.generate-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.select-image-btn {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 15px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.select-image-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.change-image-btn {
+  background: #f8f9fa;
+  color: #495057;
+  border: 2px solid #dee2e6;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.change-image-btn:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.generate-btn {
+  background: linear-gradient(135deg, #007bff, #6610f2);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 15px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+}
+
+.generate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.6);
+}
+
+.generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 1024px) {
+  .bottom-controls {
+    flex-direction: column;
+    gap: 1.5rem;
+    height: auto;
+    min-height: 120px;
+  }
+}
+
+@media (max-width: 768px) {
+  .bottom-controls {
+    flex-direction: column;
+    gap: 1.5rem;
+    height: auto;
+    min-height: 120px;
+  }
+}
+

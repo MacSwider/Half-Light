@@ -2,7 +2,7 @@ import Store from 'electron-store';
 
 export interface UserPreferences {
     // Theme
-    theme: 'light' | 'dark';
+    theme: 'light' | 'dark' | 'high-contrast';
     
     // Default lithophane settings
     defaultThickness: string;

@@ -1,6 +1,6 @@
 import {app, BrowserWindow, ipcMain, dialog, Menu, shell} from 'electron';
 import {isDev} from "./utils/util.js";
-import {getPreloadPath, getUIPath} from "./utils/pathResolver.js";
+import {getPreloadPath, getUIPath, getSettingsWindowPath} from "./utils/pathResolver.js";
 import {LithophaneProcessor} from "./core/lithophaneProcessor.js";
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { preferencesManager, type UserPreferences} from "./services/preferences.js";
@@ -300,7 +300,7 @@ app.on("ready", () => {
         return preferencesManager.getPreference('theme');
     });
 
-    ipcMain.handle('setTheme', async (_, theme: 'light' | 'dark') => {
+    ipcMain.handle('setTheme', async (_, theme: 'light' | 'dark' | 'high-contrast') => {
         preferencesManager.setPreference('theme', theme);
         if (mainWindow) {
             mainWindow.webContents.send('theme-changed', theme);
@@ -460,220 +460,8 @@ function openSettingsWindow() {
         },
     });
 
-    // Create settings HTML with theme toggle
-    const settingsHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Settings</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            padding: 2rem;
-            background: #f5f5f5;
-            color: #333;
-        }
-        [data-theme="dark"] body {
-            background: #1a1a1a;
-            color: #e0e0e0;
-        }
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        h1 {
-            margin-bottom: 2rem;
-            font-size: 1.75rem;
-        }
-        .setting-item {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        [data-theme="dark"] .setting-item {
-            background: #2a2a2a;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-        .setting-label {
-            font-weight: 600;
-            margin-bottom: 1rem;
-            display: block;
-        }
-        .theme-toggle {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .theme-toggle button {
-            flex: 1;
-            padding: 0.75rem 1.5rem;
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            background: white;
-            color: #667eea;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        [data-theme="dark"] .theme-toggle button {
-            background: #2a2a2a;
-            color: #8a9aff;
-            border-color: #8a9aff;
-        }
-        .theme-toggle button.active {
-            background: #667eea;
-            color: white;
-        }
-        [data-theme="dark"] .theme-toggle button.active {
-            background: #8a9aff;
-            color: #1a1a1a;
-        }
-        .theme-toggle button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        .theme-toggle button:active {
-            transform: translateY(0);
-        }
-        .slicer-path {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-        .slicer-path-display {
-            padding: 0.75rem;
-            background: #f8f9fa;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            color: #666;
-            word-break: break-all;
-            min-height: 2.5rem;
-            display: flex;
-            align-items: center;
-        }
-        [data-theme="dark"] .slicer-path-display {
-            background: #2a2a2a;
-            border-color: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.7);
-        }
-        .slicer-path-display.empty {
-            color: #999;
-            font-style: italic;
-        }
-        [data-theme="dark"] .slicer-path-display.empty {
-            color: rgba(255, 255, 255, 0.4);
-        }
-        .slicer-path button {
-            padding: 0.75rem 1.5rem;
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            background: #667eea;
-            color: white;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-weight: 500;
-        }
-        [data-theme="dark"] .slicer-path button {
-            background: #8a9aff;
-            border-color: #8a9aff;
-            color: #1a1a1a;
-        }
-        .slicer-path button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        .slicer-path button:active {
-            transform: translateY(0);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Settings</h1>
-        <div class="setting-item">
-            <label class="setting-label">Theme</label>
-            <div class="theme-toggle">
-                <button id="light-theme" class="active">☀️ Light</button>
-                <button id="dark-theme">🌙 Dark</button>
-            </div>
-        </div>
-        <div class="setting-item">
-            <label class="setting-label">Slicer Application</label>
-            <div class="slicer-path">
-                <div id="slicer-path-display" class="slicer-path-display empty">No slicer selected</div>
-                <button id="select-slicer-btn">Select Slicer...</button>
-            </div>
-        </div>
-    </div>
-    <script>
-        let currentTheme = 'light';
-        let currentSlicerPath = null;
-        
-        // Get initial theme
-        window.electron.getTheme().then(theme => {
-            currentTheme = theme;
-            updateUI();
-        });
-        
-        // Get initial slicer path
-        window.electron.getPreference('slicerPath').then(path => {
-            currentSlicerPath = path;
-            updateSlicerPath();
-        });
-        
-        // Listen for theme changes
-        window.electron.onThemeChanged((theme) => {
-            currentTheme = theme;
-            updateUI();
-        });
-        
-        function updateUI() {
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            document.getElementById('light-theme').classList.toggle('active', currentTheme === 'light');
-            document.getElementById('dark-theme').classList.toggle('active', currentTheme === 'dark');
-        }
-        
-        function updateSlicerPath() {
-            const display = document.getElementById('slicer-path-display');
-            if (currentSlicerPath) {
-                display.textContent = currentSlicerPath;
-                display.classList.remove('empty');
-            } else {
-                display.textContent = 'No slicer selected';
-                display.classList.add('empty');
-            }
-        }
-        
-        document.getElementById('light-theme').addEventListener('click', () => {
-            window.electron.setTheme('light');
-        });
-        
-        document.getElementById('dark-theme').addEventListener('click', () => {
-            window.electron.setTheme('dark');
-        });
-        
-        document.getElementById('select-slicer-btn').addEventListener('click', async () => {
-            try {
-                const path = await window.electron.selectSlicer();
-                if (path) {
-                    currentSlicerPath = path;
-                    updateSlicerPath();
-                }
-            } catch (error) {
-                console.error('Error selecting slicer:', error);
-            }
-        });
-    </script>
-</body>
-</html>`;
-    
-    settingsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(settingsHTML)}`);
+    // Load settings window from separate HTML file
+    settingsWindow.loadFile(getSettingsWindowPath());
 }
 
 function getMimeType(filePath: string): string {

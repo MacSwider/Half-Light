@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import './App.css';
+import './styles/index.css';
 import type { ImageProcessingResult } from '../../types';
 
 function App() {
@@ -21,7 +21,7 @@ function App() {
   const [smoothingMethod, setSmoothingMethod] = useState<string>('laplacian');
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'high-contrast'>('light');
   const [isDragging, setIsDragging] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<{ progress: number; message: string } | null>(null);
   
@@ -78,7 +78,7 @@ function App() {
     loadPreferences();
 
     // Listen for theme changes from main process
-    window.electron.onThemeChanged((newTheme: 'light' | 'dark') => {
+    window.electron.onThemeChanged((newTheme: 'light' | 'dark' | 'high-contrast') => {
       setTheme(newTheme);
       document.documentElement.setAttribute('data-theme', newTheme);
     });

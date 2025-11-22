@@ -1,0 +1,95 @@
+/* Light Theme Styles */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  color: #213547;
+  background-color: #ffffff;
+}
+
+[data-theme="light"] body {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #333;
+}
+
+[data-theme="light"] .app-header {
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .app-header p {
+  color: #666;
+}
+
+[data-theme="light"] .image-preview-section {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .no-image-placeholder {
+  color: #666;
+}
+
+[data-theme="light"] .settings-section {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .settings-section h2 {
+  color: #333;
+}
+
+[data-theme="light"] .settings-content {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme="light"] .setting-item label {
+  color: #333;
+}
+
+[data-theme="light"] .setting-item input,
+[data-theme="light"] .setting-item select {
+  background: white;
+  border-color: #e9ecef;
+  color: #333;
+}
+
+[data-theme="light"] .setting-info {
+  color: #333;
+  background: #f8f9fa;
+  border-color: #e9ecef;
+}
+
+[data-theme="light"] .checkbox-label {
+  color: #333;
+}
+
+[data-theme="light"] .bottom-controls {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .popup-content {
+  background: white;
+}
+
+[data-theme="light"] .popup-close {
+  color: #666;
+}
+
+[data-theme="light"] .popup-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+[data-theme="light"] .progress-bar-container {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .progress-text {
+  color: #333;
+}
+
+[data-theme="light"] .file-info {
+  color: #666;
+}
+
