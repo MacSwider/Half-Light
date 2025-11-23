@@ -5,6 +5,7 @@ import { join } from 'path';
 import { app } from 'electron';
 import type { LithophaneSettings, ImageProcessingResult } from '../../../types.js';
 import { applySmoothing } from '../services/smoothing/smoothingAlgorithms.js';
+import { logger } from '../utils/logger.js';
 
 
 export class LithophaneProcessor {
@@ -37,7 +38,7 @@ export class LithophaneProcessor {
             const internalWidth = settings.width * (settings.resolutionMultiplier || 4);
             const internalHeight = settings.height * (settings.resolutionMultiplier || 4);
             
-            console.log(`DEBUG: processImage - Resizing image to ${internalWidth}x${internalHeight} (${settings.resolutionMultiplier || 4}x resolution)`);
+            logger.debug(`processImage - Resizing image to ${internalWidth}x${internalHeight} (${settings.resolutionMultiplier || 4}x resolution)`);
             
             const processedImage = await image
                 .grayscale()
@@ -92,10 +93,10 @@ export class LithophaneProcessor {
             const internalWidth = settings.width * (settings.resolutionMultiplier || 4);
             const internalHeight = settings.height * (settings.resolutionMultiplier || 4);
 
-            console.log(`DEBUG: Using processed image data, buffer size: ${processedImage.length} bytes`);
-            console.log(`DEBUG: Expected pixels: ${internalWidth * internalHeight} = ${internalWidth * internalHeight} pixels`);
-            console.log(`DEBUG: Buffer per pixel: ${processedImage.length / (internalWidth * internalHeight)} bytes per pixel`);
-            console.log(`DEBUG: Image dimensions: ${internalWidth}x${internalHeight} (${settings.resolutionMultiplier || 4}x resolution)`);
+            logger.debug(`Using processed image data, buffer size: ${processedImage.length} bytes`);
+            logger.debug(`Expected pixels: ${internalWidth * internalHeight} = ${internalWidth * internalHeight} pixels`);
+            logger.debug(`Buffer per pixel: ${processedImage.length / (internalWidth * internalHeight)} bytes per pixel`);
+            logger.debug(`Image dimensions: ${internalWidth}x${internalHeight} (${settings.resolutionMultiplier || 4}x resolution)`);
 
             reportProgress(20, 'Generating height map...');
 
@@ -138,10 +139,10 @@ export class LithophaneProcessor {
         const internalWidth = width * resolutionMultiplier;
         const internalHeight = height * resolutionMultiplier;
         
-        console.log(`Generating ${quality} quality lithophane: ${internalWidth}x${internalHeight} (${resolutionMultiplier}x resolution)`);
-        console.log(`Using thickness: ${thickness}mm for Z-axis`);
-        console.log(`Image dimensions: ${width}x${height}mm (X and Y axes)`);
-        console.log(`Final STL will be: ${width}x${height}x${thickness}mm`);
+        logger.info(`Generating ${quality} quality lithophane: ${internalWidth}x${internalHeight} (${resolutionMultiplier}x resolution)`);
+        logger.info(`Using thickness: ${thickness}mm for Z-axis`);
+        logger.info(`Image dimensions: ${width}x${height}mm (X and Y axes)`);
+        logger.info(`Final STL will be: ${width}x${height}x${thickness}mm`);
         
         reportProgress(30, 'Processing image data and enhancing edges...');
         
@@ -186,10 +187,10 @@ export class LithophaneProcessor {
         // Step 5: Convert to STL format
         const stlContent = this.verticesToSTL(vertices, normals);
         
-        console.log(`STL generation complete:`);
-        console.log(`- Total vertices: ${vertices.length / 3}`);
-        console.log(`- Final dimensions: ${width}x${height}x${thickness}mm`);
-        console.log(`- First layer height: ${firstLayerHeight}mm`);
+        logger.info(`STL generation complete:`);
+        logger.info(`- Total vertices: ${vertices.length / 3}`);
+        logger.info(`- Final dimensions: ${width}x${height}x${thickness}mm`);
+        logger.info(`- First layer height: ${firstLayerHeight}mm`);
         
         return { stlContent };
     }
@@ -234,7 +235,7 @@ export class LithophaneProcessor {
             maxBrightness = Math.max(maxBrightness, value);
         }
         
-        console.log(`Original brightness range: min=${minBrightness.toFixed(3)}, max=${maxBrightness.toFixed(3)}`);
+        logger.debug(`Original brightness range: min=${minBrightness.toFixed(3)}, max=${maxBrightness.toFixed(3)}`);
         
         // Calculate discrete layer parameters
         const firstLayerThickness = firstLayerHeight;
@@ -245,12 +246,12 @@ export class LithophaneProcessor {
         const numberOfDiscreteLayers = Math.max(1, totalUserLayers - 1);
         const layerThicknessIncrement = numberOfDiscreteLayers > 0 ? (remainingThickness / numberOfDiscreteLayers) : 0;
         
-        console.log(`DISCRETE LAYER APPROACH:`);
-        console.log(`- First layer thickness: ${firstLayerThickness.toFixed(3)}mm`);
-        console.log(`- Remaining thickness: ${remainingThickness.toFixed(3)}mm`);
-        console.log(`- Number of additional discrete layers: ${numberOfDiscreteLayers}`);
-        console.log(`- Thickness increment per layer: ${layerThicknessIncrement.toFixed(3)}mm`);
-        console.log(`- Total discrete levels: ${numberOfDiscreteLayers + 1} (including first layer)`);
+        logger.debug(`DISCRETE LAYER APPROACH:`);
+        logger.debug(`- First layer thickness: ${firstLayerThickness.toFixed(3)}mm`);
+        logger.debug(`- Remaining thickness: ${remainingThickness.toFixed(3)}mm`);
+        logger.debug(`- Number of additional discrete layers: ${numberOfDiscreteLayers}`);
+        logger.debug(`- Thickness increment per layer: ${layerThicknessIncrement.toFixed(3)}mm`);
+        logger.debug(`- Total discrete levels: ${numberOfDiscreteLayers + 1} (including first layer)`);
         
         // Create height map
         const heightMap: number[][] = [];
@@ -367,7 +368,7 @@ export class LithophaneProcessor {
             this.addFrame(vertices, normals, width, height, settings.thickness, settings.frameWidth || 2.0);
         }
         
-        console.log('Geometry generated:', { verticesCount: vertices.length, normalsCount: normals.length });
+        logger.debug('Geometry generated:', { verticesCount: vertices.length, normalsCount: normals.length });
         this.logCoordinateRanges(vertices);
         
         return { vertices, normals };
@@ -685,7 +686,7 @@ export class LithophaneProcessor {
             maxZ = Math.max(maxZ, vertices[i + 2]);
         }
         
-        console.log('STL coordinate ranges:', {
+        logger.debug('STL coordinate ranges:', {
             X: `${minX.toFixed(2)} to ${maxX.toFixed(2)} (span: ${(maxX - minX).toFixed(2)}mm)`,
             Y: `${minY.toFixed(2)} to ${maxY.toFixed(2)} (span: ${(maxY - minY).toFixed(2)}mm)`,
             Z: `${minZ.toFixed(2)} to ${maxZ.toFixed(2)} (span: ${(maxZ - minZ).toFixed(2)}mm)`

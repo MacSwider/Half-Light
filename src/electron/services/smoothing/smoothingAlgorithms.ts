@@ -1,6 +1,7 @@
 /**
  * Image smoothing algorithms for lithophane height maps
  */
+import { logger } from '../../utils/logger.js';
 
 export type SmoothingMethod = 'geometric' | 'laplacian' | 'none';
 
@@ -30,7 +31,7 @@ export function applySmoothing(
 
         case 'none':
             // No smoothing applied - preserve maximum detail
-            console.log('No smoothing applied - preserving maximum detail');
+            logger.debug('No smoothing applied - preserving maximum detail');
             break;
     }
 }
@@ -84,7 +85,7 @@ function applyGeometricSmoothing(
         }
     }
     
-    console.log(`Applied geometric smoothing: ${smoothingPasses} passes with 5x5 kernel`);
+    logger.debug(`Applied geometric smoothing: ${smoothingPasses} passes with 5x5 kernel`);
 }
 
 /**
@@ -148,6 +149,6 @@ function applyLaplacianSmoothing(
         }
     }
     
-    console.log(`Applied Laplacian smoothing: ${passes} passes with strength ${strength}`);
+    logger.debug(`Applied Laplacian smoothing: ${passes} passes with strength ${strength}`);
 }
 

@@ -55,7 +55,8 @@ document.getElementById('select-slicer-btn').addEventListener('click', async () 
             updateSlicerPath();
         }
     } catch (error) {
-        console.error('Error selecting slicer:', error);
+        // Error logging handled by main process
+        alert('Error selecting slicer: ' + (error.message || 'Unknown error'));
     }
 });
 

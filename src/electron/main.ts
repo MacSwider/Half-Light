@@ -9,6 +9,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { writeFile } from 'fs/promises';
 import { PathValidator } from './utils/pathValidator.js';
+import { logger } from './utils/logger.js';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -177,8 +178,8 @@ app.on("ready", () => {
     });
 
     ipcMain.handle('generateSTL', async (_, imagePath: string, settings: any) => {
-        console.log('DEBUG: Main process received settings:', settings);
-        console.log('DEBUG: Main process resolutionMultiplier:', settings.resolutionMultiplier);
+        logger.debug('Main process received settings:', settings);
+        logger.debug('Main process resolutionMultiplier:', settings.resolutionMultiplier);
         
         // Validate image path
         const pathValidation = PathValidator.validatePathExists(imagePath);
@@ -232,7 +233,7 @@ app.on("ready", () => {
         try {
             // Basic validation - check if file exists
             if (!existsSync(imagePath)) {
-                console.error('Image file does not exist:', imagePath);
+                logger.error('Image file does not exist:', imagePath);
                 return null;
             }
             
@@ -240,7 +241,7 @@ app.on("ready", () => {
             const ext = PathValidator.getFileExtension(imagePath).toLowerCase();
             const allowedExts = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
             if (!ext || !allowedExts.includes(ext)) {
-                console.error('Invalid image extension:', ext);
+                logger.error('Invalid image extension:', ext);
                 return null;
             }
             
@@ -249,7 +250,7 @@ app.on("ready", () => {
             const mimeType = getMimeType(imagePath);
             return `data:${mimeType};base64,${base64}`;
         } catch (error) {
-            console.error('Error reading image for preview:', error);
+            logger.error('Error reading image for preview:', error);
             return null;
         }
     });
@@ -285,7 +286,7 @@ app.on("ready", () => {
             
             return tempPath;
         } catch (error) {
-            console.error('Error handling dropped file:', error);
+            logger.error('Error handling dropped file:', error);
             throw new Error(`Failed to save dropped file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     });
@@ -411,14 +412,14 @@ app.on("ready", () => {
                 const psCommand = `Start-Process -FilePath "${slicerPath.replace(/"/g, '`"')}" -ArgumentList "${filePath.replace(/"/g, '`"')}"`;
                 exec(`powershell -Command "${psCommand}"`, (error: any) => {
                     if (error) {
-                        console.error('Error opening slicer:', error);
+                        logger.error('Error opening slicer:', error);
                         // Fallback to cmd.exe method if PowerShell fails
                         const escapedSlicerPath = slicerPath.replace(/"/g, '""');
                         const escapedFilePath = filePath.replace(/"/g, '""');
                         const cmdCommand = `start "" "${escapedSlicerPath}" "${escapedFilePath}"`;
                         exec(cmdCommand, { shell: 'cmd.exe' }, (fallbackError: any) => {
                             if (fallbackError) {
-                                console.error('Fallback method also failed:', fallbackError);
+                                logger.error('Fallback method also failed:', fallbackError);
                             }
                         });
                     }
