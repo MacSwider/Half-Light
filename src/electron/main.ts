@@ -14,7 +14,7 @@ import { logger } from './utils/logger.js';
 let mainWindow: BrowserWindow | null = null;
 
 app.on("ready", () => {
-    // Create the application menu
+    // Build the menu bar
     const template: Electron.MenuItemConstructorOptions[] = [
         {
             label: 'File',
@@ -23,7 +23,6 @@ app.on("ready", () => {
                     label: 'Select Image',
                     accelerator: 'CmdOrCtrl+O',
                     click: () => {
-                        // Trigger image selection
                         if (mainWindow) {
                             mainWindow.webContents.send('menu-select-image');
                         }
@@ -33,7 +32,6 @@ app.on("ready", () => {
                     label: 'Generate STL',
                     accelerator: 'CmdOrCtrl+G',
                     click: () => {
-                        // Trigger STL generation
                         if (mainWindow) {
                             mainWindow.webContents.send('menu-generate-stl');
                         }
@@ -109,7 +107,7 @@ app.on("ready", () => {
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
 
-    // Load saved window bounds or use defaults
+    // Restore window size/position
     const savedBounds = preferencesManager.getPreference('windowBounds');
     const windowBounds = savedBounds || { width: 1200, height: 800 };
 
@@ -127,7 +125,7 @@ app.on("ready", () => {
         },
     });
 
-    // Save window bounds on move/resize
+    // Remember window position/size (debounced)
     let saveBoundsTimeout: NodeJS.Timeout | null = null;
     const saveWindowBounds = () => {
         if (saveBoundsTimeout) {
@@ -143,13 +141,13 @@ app.on("ready", () => {
                     y: bounds.y,
                 });
             }
-        }, 500); // Debounce to avoid too many saves
+        }, 500); // Don't save too often
     };
 
     mainWindow.on('resized', saveWindowBounds);
     mainWindow.on('moved', saveWindowBounds);
 
-    // Save window bounds on close
+    // Save one last time on close
     mainWindow.on('close', () => {
         if (mainWindow) {
             const bounds = mainWindow.getBounds();
@@ -164,14 +162,12 @@ app.on("ready", () => {
 
     if(isDev()){
         mainWindow.loadURL('http://localhost:5523');
-        // Open DevTools in development
         mainWindow.webContents.openDevTools();
     }else{
         mainWindow.loadFile(getUIPath());
     }
 
-
-    // Lithophane processing handlers
+    // IPC handlers
     ipcMain.handle('processImage', async (_, imagePath: string, settings: any) => {
         const processor = LithophaneProcessor.getInstance();
         return await processor.processImage(imagePath, settings);
@@ -181,7 +177,7 @@ app.on("ready", () => {
         logger.debug('Main process received settings:', settings);
         logger.debug('Main process resolutionMultiplier:', settings.resolutionMultiplier);
         
-        // Validate image path
+        // Check if the image file exists
         const pathValidation = PathValidator.validatePathExists(imagePath);
         if (!pathValidation.isValid) {
             return {
@@ -202,7 +198,7 @@ app.on("ready", () => {
         
         const processor = LithophaneProcessor.getInstance();
         
-        // Set up progress callback
+        // Send progress updates to the UI
         const progressCallback = (progress: number, message: string) => {
             if (mainWindow) {
                 mainWindow.webContents.send('stl-generation-progress', { progress, message });
@@ -212,7 +208,7 @@ app.on("ready", () => {
         return await processor.generateSTL(imagePath, settings, progressCallback);
     });
 
-    // File dialog handler for image selection
+    // File picker
     ipcMain.handle('selectImage', async () => {
         if (!mainWindow) return null;
         const result = await dialog.showOpenDialog(mainWindow, {
@@ -228,16 +224,16 @@ app.on("ready", () => {
         return null;
     });
 
-    // Image preview handler - convert image to base64
+    // Convert image to base64 for preview
     ipcMain.handle('getImagePreview', async (_, imagePath: string) => {
         try {
-            // Basic validation - check if file exists
+            // Make sure file exists
             if (!existsSync(imagePath)) {
                 logger.error('Image file does not exist:', imagePath);
                 return null;
             }
             
-            // Validate extension (less strict - just check extension)
+            // Check file extension
             const ext = PathValidator.getFileExtension(imagePath).toLowerCase();
             const allowedExts = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
             if (!ext || !allowedExts.includes(ext)) {
@@ -255,16 +251,16 @@ app.on("ready", () => {
         }
     });
 
-    // Handle dropped files - save temporarily and return path
+    // Save dropped file to temp directory
     ipcMain.handle('handleDroppedFile', async (_, fileDataBase64: string, fileName: string) => {
         try {
-            // Sanitize filename
+            // Clean up the filename
             const sanitizedFilename = PathValidator.sanitizeFilename(fileName);
             if (!sanitizedFilename) {
                 throw new Error('Invalid filename');
             }
             
-            // Validate file extension
+            // Check extension
             const extValidation = PathValidator.validatePath(sanitizedFilename, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']);
             if (!extValidation.isValid) {
                 throw new Error(extValidation.error || 'Invalid file type');
@@ -274,13 +270,13 @@ app.on("ready", () => {
             const tempFilename = `dropped_${Date.now()}_${sanitizedFilename}`;
             const tempPath = join(tempDir, tempFilename);
             
-            // Validate the final path
+            // Make sure path is safe
             const pathValidation = PathValidator.validatePathInDirectory(tempPath, tempDir);
             if (!pathValidation.isValid) {
                 throw new Error(pathValidation.error || 'Invalid path');
             }
             
-            // Convert base64 string to Buffer and write to temp file
+            // Write the file
             const buffer = Buffer.from(fileDataBase64, 'base64');
             await writeFile(tempPath, buffer);
             
@@ -291,12 +287,12 @@ app.on("ready", () => {
         }
     });
 
-    // Settings window handler
+    // Open settings window
     ipcMain.handle('openSettings', async () => {
         openSettingsWindow();
     });
 
-    // Theme management handlers (now using preferences)
+    // Theme stuff
     ipcMain.handle('getTheme', async () => {
         return preferencesManager.getPreference('theme');
     });
@@ -353,7 +349,7 @@ app.on("ready", () => {
         return null;
     });
 
-    // Open file in slicer handler (accepts either file path or STL content)
+    // Open STL file in slicer (can pass file path or content)
     ipcMain.handle('openInSlicer', async (_, filePathOrContent: string, isContent: boolean = false, filename?: string) => {
         const slicerPath = preferencesManager.getPreference('slicerPath');
         
@@ -361,7 +357,7 @@ app.on("ready", () => {
             throw new Error('No slicer application selected. Please select a slicer in Settings.');
         }
 
-        // Validate slicer path
+        // Make sure slicer exists
         const slicerPathValidation = PathValidator.validatePathExists(slicerPath);
         if (!slicerPathValidation.isValid) {
             throw new Error(`Slicer application not found at: ${slicerPath}. Please update the slicer path in Settings.`);
@@ -370,13 +366,13 @@ app.on("ready", () => {
         let filePath: string;
 
         if (isContent) {
-            // Save STL content to temporary file
+            // Save content to temp file first
             const tempDir = tmpdir();
             const sanitizedFilename = filename ? PathValidator.sanitizeFilename(filename) : `lithophane_${Date.now()}.stl`;
             const finalFilename = sanitizedFilename.endsWith('.stl') ? sanitizedFilename : `${sanitizedFilename}.stl`;
             filePath = join(tempDir, finalFilename);
             
-            // Validate path
+            // Check path is safe
             const pathValidation = PathValidator.validatePathInDirectory(filePath, tempDir);
             if (!pathValidation.isValid) {
                 throw new Error(pathValidation.error || 'Invalid file path');
@@ -390,7 +386,7 @@ app.on("ready", () => {
         } else {
             filePath = filePathOrContent;
             
-            // Validate STL file path
+            // Check file exists
             const pathValidation = PathValidator.validatePathExists(filePath);
             if (!pathValidation.isValid) {
                 throw new Error(pathValidation.error || `STL file not found: ${filePath}`);
@@ -404,16 +400,15 @@ app.on("ready", () => {
 
         try {
             if (process.platform === 'darwin') {
-                // macOS: Use 'open' command for .app bundles
+                // macOS: use 'open' command
                 spawn('open', ['-a', slicerPath, filePath], { detached: true });
             } else if (process.platform === 'win32') {
-                // Windows: Use PowerShell to properly handle paths with spaces
-                // PowerShell handles paths with spaces much better than cmd.exe
+                // Windows: PowerShell handles spaces better than cmd
                 const psCommand = `Start-Process -FilePath "${slicerPath.replace(/"/g, '`"')}" -ArgumentList "${filePath.replace(/"/g, '`"')}"`;
                 exec(`powershell -Command "${psCommand}"`, (error: any) => {
                     if (error) {
                         logger.error('Error opening slicer:', error);
-                        // Fallback to cmd.exe method if PowerShell fails
+                        // Fallback to cmd.exe if PowerShell fails
                         const escapedSlicerPath = slicerPath.replace(/"/g, '""');
                         const escapedFilePath = filePath.replace(/"/g, '""');
                         const cmdCommand = `start "" "${escapedSlicerPath}" "${escapedFilePath}"`;
@@ -425,7 +420,7 @@ app.on("ready", () => {
                     }
                 });
             } else {
-                // Linux: Execute directly
+                // Linux: just run it
                 spawn(slicerPath, [filePath], { detached: true });
             }
             return { success: true, filePath };
@@ -434,7 +429,7 @@ app.on("ready", () => {
         }
     });
 
-    // Send initial theme to renderer
+    // Apply theme when window loads
     mainWindow.webContents.on('did-finish-load', () => {
         if (mainWindow) {
             const theme = preferencesManager.getPreference('theme');

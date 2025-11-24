@@ -14,23 +14,22 @@ export const useImageHandling = (
 
   const loadImageFromPath = useCallback(async (path: string) => {
     setImagePath(path);
-    // Save the image path to preferences
+    // Remember this for next time
     try {
       await window.electron.setPreference('lastImagePath', path);
     } catch (error) {
       logger.error('Error saving image path:', error);
     }
 
-    // Get image preview as base64 data URL
+    // Get preview image
     try {
       const previewUrl = await window.electron.getImagePreview(path);
       if (previewUrl) {
         setSelectedImage(previewUrl);
 
-        // Get image dimensions and update width/height fields
+        // Auto-fill width/height from image dimensions
         const img = new Image();
         img.onload = () => {
-          // Set width and height to match image dimensions
           setWidth(img.width.toString());
           setHeight(img.height.toString());
         };
@@ -65,8 +64,7 @@ export const useImageHandling = (
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only set dragging to false if we're actually leaving the drop zone
-    // (not just moving between child elements)
+    // Only clear dragging if we're actually leaving (not just moving between children)
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX;
     const y = e.clientY;
@@ -86,7 +84,7 @@ export const useImageHandling = (
       if (files && files.length > 0) {
         const file = files[0];
 
-        // Check if it's an image file
+        // Make sure it's actually an image
         const imageExtensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
         const fileName = file.name.toLowerCase();
         const isImage = imageExtensions.some((ext) => fileName.endsWith(ext));
@@ -102,17 +100,16 @@ export const useImageHandling = (
         }
 
         try {
-          // Try to get the file path directly (works in Electron)
+          // Try direct path access (Electron thing)
           const filePath = (file as any).path;
 
           if (filePath) {
-            // Direct path access works - use it
+            // Got it - use the path directly
             await loadImageFromPath(filePath);
           } else {
-            // Fallback: read file and send to main process to save temporarily
+            // Fallback: read file and save to temp
             const arrayBuffer = await file.arrayBuffer();
-            // Convert ArrayBuffer to base64 string for reliable IPC transmission
-            // Use chunked approach to avoid call stack overflow for large files
+            // Convert to base64 for IPC (chunked to avoid stack overflow on big files)
             const uint8Array = new Uint8Array(arrayBuffer);
             let binaryString = '';
             const chunkSize = 8192; // Process in chunks

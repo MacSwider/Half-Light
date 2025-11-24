@@ -15,8 +15,8 @@ function App() {
   const settings = useSettings();
   const menuListenersRegistered = useRef(false);
 
-  // We need to create a ref to hold the setResult and setShowPopup functions
-  // since they come from stlGeneration which depends on imageHandling
+  // Workaround: need a ref because stlGeneration depends on imageHandling
+  // but imageHandling needs callbacks from stlGeneration - circular dependency fun!
   const stlGenerationRef = useRef<{
     setResult: (result: any) => void;
     setShowPopup: (show: boolean) => void;
@@ -31,7 +31,7 @@ function App() {
 
   const stlGeneration = useSTLGeneration(imageHandling.imagePath, settings);
   
-  // Update ref when stlGeneration is available
+  // Keep the ref in sync
   useEffect(() => {
     stlGenerationRef.current = {
       setResult: stlGeneration.setResult,
@@ -39,20 +39,20 @@ function App() {
     };
   }, [stlGeneration.setResult, stlGeneration.setShowPopup]);
 
-  // Load preferences on startup
+  // Load saved preferences when app starts
   useEffect(() => {
     const loadPreferences = async () => {
       try {
         const prefs = await window.electron.getPreferences();
 
-        // Load theme
+        // Apply theme
         const theme = prefs.theme;
         document.documentElement.setAttribute('data-theme', theme);
 
-        // Load default settings
+        // Restore settings
         settings.loadFromPreferences(prefs);
 
-        // Load last image if it exists
+        // Try to load the last image
         if (prefs.lastImagePath) {
           try {
             await imageHandling.loadImageFromPath(prefs.lastImagePath);
@@ -67,15 +67,15 @@ function App() {
 
     loadPreferences();
 
-    // Listen for theme changes from main process
+    // Theme can change from menu
     window.electron.onThemeChanged((newTheme: 'light' | 'dark' | 'high-contrast') => {
       document.documentElement.setAttribute('data-theme', newTheme);
     });
-  }, []); // Run only once on mount
+  }, []); // Only run once
 
-  // Save preferences when settings change (debounced)
+  // Auto-save preferences (debounced so we don't spam writes)
   useEffect(() => {
-    // Don't save on initial load
+    // Skip the initial load
     if (menuListenersRegistered.current) {
       settings.savePreferences();
     }
@@ -87,14 +87,14 @@ function App() {
     };
   }, [settings.savePreferences]);
 
-  // Set up menu action listeners
+  // Hook up menu shortcuts
   useEffect(() => {
-    // Only register if not already registered
+    // Prevent duplicate listeners
     if (menuListenersRegistered.current) {
       return;
     }
 
-    // Register listeners (preload already removes old listeners as a safety measure)
+    // Menu -> UI communication
     window.electron.onMenuSelectImage(() => {
       imageHandling.handleImageSelect();
     });
@@ -103,14 +103,14 @@ function App() {
       stlGeneration.handleGenerateSTL();
     });
 
-    // Set up progress listener
+    // Listen for progress updates from the main process
     window.electron.onSTLGenerationProgress((progressData) => {
       stlGeneration.setGenerationProgress?.(progressData);
     });
 
     menuListenersRegistered.current = true;
 
-    // Cleanup function (though listeners persist for app lifetime)
+    // Cleanup (though these persist for the app lifetime anyway)
     return () => {
       menuListenersRegistered.current = false;
     };

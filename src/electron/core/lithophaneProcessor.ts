@@ -1,5 +1,4 @@
 import sharp from 'sharp';
-import * as THREE from 'three';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
@@ -22,7 +21,6 @@ export class LithophaneProcessor {
 
     public async processImage(imagePath: string, settings: LithophaneSettings): Promise<ImageProcessingResult> {
         try {
-            // Load and process the image
             const image = sharp(imagePath);
             const metadata = await image.metadata();
             
@@ -34,7 +32,7 @@ export class LithophaneProcessor {
                 };
             }
 
-            // Convert to grayscale and resize with resolution multiplier for better quality
+            // Scale up resolution for smoother surfaces (default 4x)
             const internalWidth = settings.width * (settings.resolutionMultiplier || 4);
             const internalHeight = settings.height * (settings.resolutionMultiplier || 4);
             
@@ -49,7 +47,7 @@ export class LithophaneProcessor {
             return {
                 success: true,
                 message: 'Image processed successfully',
-                processedImageData: processedImage // Return the processed image data
+                processedImageData: processedImage
             };
         } catch (error) {
             return {
@@ -74,13 +72,12 @@ export class LithophaneProcessor {
 
             reportProgress(5, 'Loading and processing image...');
             
-            // Process the image first to get the high-resolution data
+            // Get the processed image data first
             const processResult = await this.processImage(imagePath, settings);
             if (!processResult.success) {
                 return processResult;
             }
 
-            // Use the processed image data from processImage
             if (!processResult.processedImageData) {
                 return {
                     success: false,
@@ -100,12 +97,10 @@ export class LithophaneProcessor {
 
             reportProgress(20, 'Generating height map...');
 
-            // Generate STL using Three.js
             const result = await this.generateSTLContent(processedImage, settings, reportProgress);
             
             reportProgress(100, 'STL generation complete!');
             
-            // Return STL content
             return {
                 success: true,
                 message: 'STL file generated successfully',
@@ -146,12 +141,12 @@ export class LithophaneProcessor {
         
         reportProgress(30, 'Processing image data and enhancing edges...');
         
-        // Step 1: Process image data to enhanced brightness
+        // Enhance edges with unsharp mask
         const enhancedBrightness = this.processImageData(imageData, internalWidth, internalHeight);
         
         reportProgress(45, 'Creating height map from brightness values...');
         
-        // Step 2: Create height map from brightness values
+        // Convert brightness to height values
         const heightMap = this.createHeightMap(
             enhancedBrightness,
             internalWidth,
@@ -161,7 +156,7 @@ export class LithophaneProcessor {
         
         reportProgress(60, 'Applying smoothing and normalizing...');
         
-        // Step 3: Apply smoothing and normalize
+        // Smooth it out and make sure thickness is correct
         this.applySmoothingAndNormalize(
             heightMap,
             internalWidth,
@@ -171,7 +166,7 @@ export class LithophaneProcessor {
         
         reportProgress(75, 'Generating 3D geometry...');
         
-        // Step 4: Generate geometry (vertices and normals)
+        // Build the mesh
         const { vertices, normals } = this.generateGeometry(
             heightMap,
             internalWidth,
@@ -184,7 +179,7 @@ export class LithophaneProcessor {
         
         reportProgress(90, 'Converting to STL format...');
         
-        // Step 5: Convert to STL format
+        // Write out the STL file
         const stlContent = this.verticesToSTL(vertices, normals);
         
         logger.info(`STL generation complete:`);
@@ -195,24 +190,18 @@ export class LithophaneProcessor {
         return { stlContent };
     }
 
-    /**
-     * Process image data to extract and enhance brightness values
-     */
+    // Convert raw image data to brightness values and sharpen edges
     private processImageData(imageData: Buffer, width: number, height: number): Float32Array {
-        // Convert image data to normalized brightness array
         const sourceBrightness = new Float32Array(width * height);
         for (let i = 0; i < width * height && i < imageData.length; i++) {
             sourceBrightness[i] = Math.min(1, Math.max(0, imageData[i] / 255));
         }
 
-        // Apply unsharp mask to enhance edges
-        // amount: 1.0 (edge strength), radius: 1 (3x3), threshold: 0.02 (ignore tiny noise)
+        // Unsharp mask: amount=1.0, radius=1 (3x3 kernel), threshold=0.02 to skip noise
         return this.applyUnsharpMask(sourceBrightness, width, height, 1.0, 1, 0.02);
     }
 
-    /**
-     * Create height map from enhanced brightness values using discrete layer approach
-     */
+    // Map brightness to height using discrete layers (works better for 3D printing)
     private createHeightMap(
         enhancedBrightness: Float32Array,
         internalWidth: number,
@@ -221,13 +210,12 @@ export class LithophaneProcessor {
     ): number[][] {
         const { thickness, firstLayerHeight } = settings;
         
-        // Collect brightness values for normalization
+        // Find min/max for normalization
         const brightnessValues: number[] = [];
         for (let i = 0; i < enhancedBrightness.length; i++) {
             brightnessValues.push(enhancedBrightness[i]);
         }
         
-        // Calculate min/max brightness for normalization
         let minBrightness = Infinity;
         let maxBrightness = -Infinity;
         for (const value of brightnessValues) {
@@ -237,7 +225,7 @@ export class LithophaneProcessor {
         
         logger.debug(`Original brightness range: min=${minBrightness.toFixed(3)}, max=${maxBrightness.toFixed(3)}`);
         
-        // Calculate discrete layer parameters
+        // Set up discrete layers (first layer is thicker, rest are evenly spaced)
         const firstLayerThickness = firstLayerHeight;
         const remainingThickness = thickness - firstLayerHeight;
         const totalUserLayers = typeof settings.numberOfLayers === 'number' && settings.numberOfLayers > 0
@@ -263,19 +251,19 @@ export class LithophaneProcessor {
                 if (pixelIndex < enhancedBrightness.length) {
                     const brightness = enhancedBrightness[pixelIndex];
                     
-                    // Normalize brightness to 0-1 range, then INVERT (brightest = 0, darkest = 1)
+                    // Invert: bright pixels = thin (layer 0), dark pixels = thick
                     let normalizedBrightness = 1 - ((brightness - minBrightness) / (maxBrightness - minBrightness));
                     
-                    // Apply negative/invert option if enabled
+                    // Flip if negative mode is on
                     if (settings.negative) {
                         normalizedBrightness = 1 - normalizedBrightness;
                     }
                     
-                    // Map to discrete layer index
+                    // Figure out which layer this pixel belongs to
                     const layerIndex = Math.floor(normalizedBrightness * (numberOfDiscreteLayers + 1));
                     const clampedLayerIndex = Math.min(layerIndex, numberOfDiscreteLayers);
                     
-                    // Calculate thickness for this discrete layer
+                    // Calculate the actual height for this layer
                     const heightValue = clampedLayerIndex === 0
                         ? firstLayerThickness
                         : firstLayerThickness + (clampedLayerIndex * layerThicknessIncrement);
@@ -290,9 +278,7 @@ export class LithophaneProcessor {
         return heightMap;
     }
 
-    /**
-     * Apply smoothing to height map and normalize to preserve thickness range
-     */
+    // Smooth the height map and make sure it fits the requested thickness range
     private applySmoothingAndNormalize(
         heightMap: number[][],
         internalWidth: number,
@@ -302,11 +288,11 @@ export class LithophaneProcessor {
         const { thickness, firstLayerHeight } = settings;
         const firstLayerThickness = firstLayerHeight;
         
-        // Apply selected smoothing method
+        // Smooth it out
         const smoothingOptions = settings.smoothing || { method: 'geometric', passes: 2 };
         applySmoothing(heightMap, internalWidth, internalHeight, smoothingOptions);
 
-        // Renormalize to preserve requested min/max thickness
+        // Make sure the thickness range is correct after smoothing
         let currentMin = Infinity;
         let currentMax = -Infinity;
         for (let y = 0; y < internalHeight; y++) {
@@ -330,7 +316,7 @@ export class LithophaneProcessor {
                 }
             }
         } else {
-            // Degenerate case: clamp into target bounds
+            // Edge case: just clamp everything
             for (let y = 0; y < internalHeight; y++) {
                 for (let x = 0; x < internalWidth; x++) {
                     heightMap[y][x] = Math.min(targetMax, Math.max(targetMin, heightMap[y][x]));
@@ -339,9 +325,7 @@ export class LithophaneProcessor {
         }
     }
 
-    /**
-     * Generate 3D geometry (vertices and normals) from height map
-     */
+    // Build the 3D mesh from the height map
     private generateGeometry(
         heightMap: number[][],
         internalWidth: number,
@@ -354,16 +338,12 @@ export class LithophaneProcessor {
         const vertices: number[] = [];
         const normals: number[] = [];
         
-        // Generate top surface
+        // Build all the surfaces
         this.addTopSurface(vertices, normals, heightMap, internalWidth, internalHeight, width, height, resolutionMultiplier);
-        
-        // Generate bottom surface
         this.addBottomSurface(vertices, normals, width, height);
-        
-        // Generate side walls
         this.addSideWalls(vertices, normals, heightMap, internalWidth, internalHeight, width, height, resolutionMultiplier);
         
-        // Generate frame if enabled
+        // Add frame if requested
         if (settings.frameEnabled) {
             this.addFrame(vertices, normals, width, height, settings.thickness, settings.frameWidth || 2.0);
         }
@@ -374,9 +354,7 @@ export class LithophaneProcessor {
         return { vertices, normals };
     }
 
-    /**
-     * Add top surface geometry from height map
-     */
+    // Create the top surface triangles from the height map
     private addTopSurface(
         vertices: number[],
         normals: number[],
@@ -405,20 +383,17 @@ export class LithophaneProcessor {
                 const y4 = ((y + 1) / resolutionMultiplier - height / 2);
                 const z4 = heightMap[y + 1][x + 1];
                 
-                // First triangle
+                // Split quad into two triangles
                 vertices.push(x1, y1, z1, x2, y2, z2, x3, y3, z3);
                 normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
                 
-                // Second triangle
                 vertices.push(x2, y2, z2, x4, y4, z4, x3, y3, z3);
                 normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
             }
         }
     }
 
-    /**
-     * Add flat bottom surface geometry
-     */
+    // Flat bottom surface (z=0)
     private addBottomSurface(
         vertices: number[],
         normals: number[],
@@ -433,7 +408,7 @@ export class LithophaneProcessor {
         const topLeft = [-halfWidth, halfHeight, 0];
         const topRight = [halfWidth, halfHeight, 0];
         
-        // First triangle
+        // Two triangles for the flat bottom
         vertices.push(
             bottomLeft[0], bottomLeft[1], bottomLeft[2],
             topLeft[0], topLeft[1], topLeft[2],
@@ -441,7 +416,6 @@ export class LithophaneProcessor {
         );
         normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1);
         
-        // Second triangle
         vertices.push(
             bottomRight[0], bottomRight[1], bottomRight[2],
             topLeft[0], topLeft[1], topLeft[2],
@@ -450,9 +424,7 @@ export class LithophaneProcessor {
         normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1);
     }
 
-    /**
-     * Add side walls geometry (left, right, top, bottom)
-     */
+    // Build the four side walls
     private addSideWalls(
         vertices: number[],
         normals: number[],
@@ -463,7 +435,7 @@ export class LithophaneProcessor {
         height: number,
         resolutionMultiplier: number
     ): void {
-        // Left wall (negative X)
+        // Left side
         for (let y = 0; y < internalHeight - 1; y++) {
             const x1 = -width / 2;
             const y1 = (y / resolutionMultiplier - height / 2);
@@ -488,7 +460,7 @@ export class LithophaneProcessor {
             normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0);
         }
 
-        // Right wall (positive X)
+        // Right side
         for (let y = 0; y < internalHeight - 1; y++) {
             const x1 = width / 2;
             const y1 = (y / resolutionMultiplier - height / 2);
@@ -513,7 +485,7 @@ export class LithophaneProcessor {
             normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0);
         }
 
-        // Bottom wall (negative Y)
+        // Bottom edge
         for (let x = 0; x < internalWidth - 1; x++) {
             const x1 = (x / resolutionMultiplier - width / 2);
             const y1 = -height / 2;
@@ -538,7 +510,7 @@ export class LithophaneProcessor {
             normals.push(0, -1, 0, 0, -1, 0, 0, -1, 0);
         }
 
-        // Top wall (positive Y)
+        // Top edge
         for (let x = 0; x < internalWidth - 1; x++) {
             const x1 = (x / resolutionMultiplier - width / 2);
             const y1 = height / 2;
@@ -564,9 +536,7 @@ export class LithophaneProcessor {
         }
     }
 
-    /**
-     * Add frame geometry around the edges
-     */
+    // Add a frame border around the lithophane
     private addFrame(
         vertices: number[],
         normals: number[],
@@ -593,7 +563,7 @@ export class LithophaneProcessor {
             [-width/2, height/2, 0]
         ];
         
-        // Frame bottom surface
+        // Bottom of the frame
         for (let i = 0; i < 4; i++) {
             const next = (i + 1) % 4;
             
@@ -612,7 +582,7 @@ export class LithophaneProcessor {
             normals.push(0, 0, -1, 0, 0, -1, 0, 0, -1);
         }
         
-        // Frame top surface
+        // Top of the frame
         for (let i = 0; i < 4; i++) {
             const next = (i + 1) % 4;
             
@@ -631,11 +601,11 @@ export class LithophaneProcessor {
             normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
         }
         
-        // Frame side walls
+        // Frame sides
         for (let i = 0; i < 4; i++) {
             const next = (i + 1) % 4;
             
-            // Outer wall
+            // Outer edge
             vertices.push(
                 outerCorners[i][0], outerCorners[i][1], outerCorners[i][2],
                 outerCorners[i][0], outerCorners[i][1], outerCorners[i][2] + frameHeight,
@@ -650,7 +620,7 @@ export class LithophaneProcessor {
             );
             normals.push(-1, 0, 0, -1, 0, 0, -1, 0, 0);
             
-            // Inner wall
+            // Inner edge
             vertices.push(
                 innerCorners[i][0], innerCorners[i][1], innerCorners[i][2],
                 innerCorners[next][0], innerCorners[next][1], innerCorners[next][2],
@@ -667,9 +637,7 @@ export class LithophaneProcessor {
         }
     }
 
-    /**
-     * Log coordinate ranges for debugging
-     */
+    // Debug helper - log the bounds of the generated mesh
     private logCoordinateRanges(vertices: number[]): void {
         if (vertices.length === 0) return;
         
@@ -693,11 +661,8 @@ export class LithophaneProcessor {
         });
     }
 
-    /**
-     * Apply unsharp mask to a normalized grayscale buffer (0..1) to enhance edges.
-     * amount controls edge boost, radius defines blur radius in pixels (1 => 3x3),
-     * threshold (0..1) suppresses enhancement for low-contrast noise.
-     */
+    // Unsharp mask for edge enhancement
+    // amount=how much to boost edges, radius=blur size (1=3x3), threshold=ignore small changes
     private applyUnsharpMask(
         src: Float32Array,
         width: number,
@@ -717,15 +682,13 @@ export class LithophaneProcessor {
         return out;
     }
 
-    /**
-     * Simple separable Gaussian-like blur for Float32 grayscale buffers.
-     * radius=1 uses kernel [1,2,1]/4; radius=2 uses [1,4,6,4,1]/16.
-     */
+    // Simple Gaussian blur (separable, so it's fast)
+    // radius=1: [1,2,1]/4, radius=2: [1,4,6,4,1]/16
     private gaussianBlurFloat(src: Float32Array, width: number, height: number, radius: number): Float32Array {
         const tmp = new Float32Array(width * height);
         const dst = new Float32Array(width * height);
 
-        // Define kernels
+        // Pick the kernel
         let kernel: number[];
         let norm: number;
         if (radius <= 1) {
@@ -738,7 +701,7 @@ export class LithophaneProcessor {
         const k = kernel.length;
         const r = Math.floor(k / 2);
 
-        // Horizontal pass
+        // Blur horizontally first
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 let acc = 0;
@@ -750,7 +713,7 @@ export class LithophaneProcessor {
             }
         }
 
-        // Vertical pass
+        // Then blur vertically
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 let acc = 0;
@@ -765,12 +728,13 @@ export class LithophaneProcessor {
         return dst;
     }
 
+    // Convert vertices/normals to ASCII STL format
+    // This took me forever to get right - STL format is picky about normals
     private verticesToSTL(vertices: number[], normals: number[]): string {
         let stl = 'solid lithophane\n';
         
-        // Process vertices in groups of 9 (3 vertices × 3 coordinates each)
+        // Each triangle is 9 floats (3 vertices × 3 coords)
         for (let i = 0; i < vertices.length; i += 9) {
-            // Get the normal for this triangle (first normal value)
             const nx = normals[i];
             const ny = normals[i + 1];
             const nz = normals[i + 2];
@@ -779,7 +743,7 @@ export class LithophaneProcessor {
             stl += `${nx.toFixed(6)} ${ny.toFixed(6)} ${nz.toFixed(6)}\n`;
             stl += '    outer loop\n';
             
-            // Add the three vertices of the triangle
+            // Write the three vertices
             for (let j = 0; j < 3; j++) {
                 const vIndex = i + j * 3;
                 const x = vertices[vIndex];

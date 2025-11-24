@@ -37,14 +37,14 @@ export const useSettings = () => {
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
 
-  // Calculate thickness when layer height or layer number changes
+  // Auto-calculate thickness from layer height/number
   const calculateThickness = useCallback(
     (height: string, number: string): string => {
       const h = parseFloat(height);
       const n = parseFloat(number);
       const flh = parseFloat(firstLayerHeight);
       if (!isNaN(h) && !isNaN(n) && !isNaN(flh) && h > 0 && n > 0) {
-        // Total thickness = first layer height + remaining layers * layer height
+        // First layer + (remaining layers × layer height)
         return (flh + h * Math.max(0, n - 1)).toFixed(2);
       }
       return thickness;
@@ -52,7 +52,7 @@ export const useSettings = () => {
     [firstLayerHeight, thickness]
   );
 
-  // Calculate layer number when thickness or layer height changes
+  // Auto-calculate layer number from thickness
   const calculateLayerNumber = useCallback(
     (thick: string, height: string): string => {
       const t = parseFloat(thick);
@@ -62,7 +62,7 @@ export const useSettings = () => {
         if (t <= flh) {
           return '1';
         }
-        // layers = 1 (first layer) + remaining thickness divided by layer height
+        // 1 (first layer) + ceil(remaining thickness / layer height)
         const remaining = Math.max(0, t - flh);
         return Math.max(1, 1 + Math.round(remaining / h)).toString();
       }
@@ -132,7 +132,7 @@ export const useSettings = () => {
         setThicknessError('');
       } else {
         validateThickness(value);
-        // Update layer number based on new thickness
+        // Recalculate layer count
         const newLayerNumber = calculateLayerNumber(value, layerHeight);
         setLayerNumber(newLayerNumber);
       }
@@ -143,10 +143,10 @@ export const useSettings = () => {
   const handleLayerHeightChange = useCallback(
     (value: string) => {
       setLayerHeight(value);
-      // Update thickness and layer number based on new layer height
+      // Recalculate everything
       const newThickness = calculateThickness(value, layerNumber);
       setThickness(newThickness);
-      setThicknessError(''); // Clear any previous errors
+      setThicknessError(''); // Clear errors
     },
     [calculateThickness, layerNumber]
   );
@@ -154,10 +154,10 @@ export const useSettings = () => {
   const handleLayerNumberChange = useCallback(
     (value: string) => {
       setLayerNumber(value);
-      // Update thickness based on new layer number
+      // Recalculate thickness
       const newThickness = calculateThickness(layerHeight, value);
       setThickness(newThickness);
-      setThicknessError(''); // Clear any previous errors
+      setThicknessError(''); // Clear errors
     },
     [calculateThickness, layerHeight]
   );
@@ -186,7 +186,7 @@ export const useSettings = () => {
     [validateFirstLayerHeight]
   );
 
-  // Save preferences when settings change (debounced)
+  // Auto-save preferences (debounced to avoid too many writes)
   const savePreferencesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const savePreferences = useCallback(async () => {
@@ -212,7 +212,7 @@ export const useSettings = () => {
       } catch (error) {
         logger.error('Error saving preferences:', error);
       }
-    }, 1000); // Debounce: save 1 second after last change
+    }, 1000); // Wait 1 second after last change
   }, [
     thickness,
     width,
@@ -228,7 +228,7 @@ export const useSettings = () => {
   ]);
 
   return {
-    // State
+    // State values
     thickness,
     thicknessError,
     width,
@@ -255,11 +255,11 @@ export const useSettings = () => {
     setSmoothingMethod,
     setSmoothingStrength,
     setNegative,
-    // Validators
+    // Validation functions
     validateThickness,
     validateResolutionMultiplier,
     validateFirstLayerHeight,
-    // Load from preferences
+    // Load saved preferences
     loadFromPreferences: (prefs: any) => {
       if (prefs.defaultThickness) setThickness(prefs.defaultThickness);
       if (prefs.defaultWidth) setWidth(prefs.defaultWidth);
@@ -273,7 +273,7 @@ export const useSettings = () => {
       if (prefs.defaultAllowFrame !== undefined) setAllowFrame(prefs.defaultAllowFrame);
       if (prefs.defaultNegative !== undefined) setNegative(prefs.defaultNegative);
     },
-    // Save preferences
+    // Save function
     savePreferences,
     savePreferencesTimeoutRef,
   };

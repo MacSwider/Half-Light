@@ -1,6 +1,4 @@
-/**
- * Image smoothing algorithms for lithophane height maps
- */
+// Smoothing algorithms for height maps
 import { logger } from '../../utils/logger.js';
 
 export type SmoothingMethod = 'geometric' | 'laplacian' | 'none';
@@ -11,10 +9,7 @@ export interface SmoothingOptions {
     passes?: number;
 }
 
-/**
- * Applies the selected smoothing method to a height map
- */
-
+// Apply the chosen smoothing method
 export function applySmoothing(
     heightMap: number[][], 
     width: number, 
@@ -30,15 +25,13 @@ export function applySmoothing(
             break;
 
         case 'none':
-            // No smoothing applied - preserve maximum detail
+            // Skip smoothing - keep all the detail
             logger.debug('No smoothing applied - preserving maximum detail');
             break;
     }
 }
 
-/**
- * Geometric smoothing with 5x5 kernel and distance-based weighting
- */
+// Geometric smoothing - uses 5x5 kernel with distance weighting
 function applyGeometricSmoothing(
     heightMap: number[][], 
     width: number, 
@@ -56,14 +49,14 @@ function applyGeometricSmoothing(
                 let sum = 0;
                 let count = 0;
                 
-                // Use a larger 5x5 kernel for broader smoothing
+                // 5x5 kernel - neighbors further away contribute less
                 for (let ky = -2; ky <= 2; ky++) {
                     for (let kx = -2; kx <= 2; kx++) {
                         const nx = x + kx;
                         const ny = y + ky;
                         
                         if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                            // Distance-based weighting with falloff
+                            // Weight by distance (center pixel gets weight 8)
                             const distance = Math.sqrt(kx * kx + ky * ky);
                             const weight = distance === 0 ? 8 : 1 / (1 + distance * 0.3);
                             
@@ -77,7 +70,7 @@ function applyGeometricSmoothing(
             }
         }
         
-        // Copy smoothed values back
+        // Update height map
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 heightMap[y][x] = smoothedMap[y][x];
@@ -88,17 +81,15 @@ function applyGeometricSmoothing(
     logger.debug(`Applied geometric smoothing: ${smoothingPasses} passes with 5x5 kernel`);
 }
 
-/**
- * Laplacian smoothing
- * Uses the discrete Laplacian operator to smooth based on local curvature
- */
+// Laplacian smoothing - smooths based on local curvature
+// Gives more organic, flowing surfaces
 function applyLaplacianSmoothing(
     heightMap: number[][], 
     width: number, 
     height: number, 
     options: SmoothingOptions
 ): void {
-    const strength = options.strength || 0.1; // How much smoothing to apply
+    const strength = options.strength || 0.1; // How strong the smoothing is
     const passes = options.passes || 3;
     
     for (let pass = 0; pass < passes; pass++) {
@@ -107,10 +98,10 @@ function applyLaplacianSmoothing(
         for (let y = 0; y < height; y++) {
             smoothedMap[y] = [];
             for (let x = 0; x < width; x++) {
-                // Calculate Laplacian (second derivative approximation)
+                // Laplacian = second derivative (curvature)
                 let laplacian = 0;
                 
-                // 4-connected neighbors (up, down, left, right)
+                // Check the 4 neighbors
                 const neighbors = [
                     { x: x, y: y - 1 },     // up
                     { x: x, y: y + 1 },     // down
@@ -130,10 +121,10 @@ function applyLaplacianSmoothing(
                 }
                 
                 if (validNeighbors > 0) {
-                    // Laplacian = 4 * center - sum of neighbors
+                    // Standard discrete Laplacian formula
                     laplacian = 4 * heightMap[y][x] - neighborSum;
                     
-                    // Apply smoothing: new_value = old_value - strength * laplacian
+                    // Reduce curvature = smoother surface
                     smoothedMap[y][x] = heightMap[y][x] - strength * laplacian;
                 } else {
                     smoothedMap[y][x] = heightMap[y][x];
@@ -141,7 +132,7 @@ function applyLaplacianSmoothing(
             }
         }
         
-        // Copy smoothed values back
+        // Update the height map with smoothed values
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 heightMap[y][x] = smoothedMap[y][x];

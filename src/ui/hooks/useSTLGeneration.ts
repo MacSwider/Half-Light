@@ -26,7 +26,7 @@ export const useSTLGeneration = (
       return;
     }
 
-    // Validate thickness, resolution multiplier, and first layer height before proceeding
+    // Check all the inputs before we start
     if (!settings.validateThickness(settings.thickness)) {
       setShowPopup(true);
       setResult({
@@ -61,7 +61,7 @@ export const useSTLGeneration = (
     setShowPopup(true);
 
     try {
-      // Use thickness from settings
+      // Build settings object for the processor
       const stlSettings = {
         width: parseFloat(settings.width),
         height: parseFloat(settings.height),
@@ -119,10 +119,8 @@ export const useSTLGeneration = (
   const handleSaveFile = useCallback(async () => {
     if (result?.stlContent && result?.suggestedFilename) {
       try {
-        // Create a blob from the STL content
+        // Trigger browser download
         const blob = new Blob([result.stlContent], { type: 'application/octet-stream' });
-
-        // Create a download link
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -132,7 +130,6 @@ export const useSTLGeneration = (
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        // Close the popup after saving
         setShowPopup(false);
       } catch (error) {
         logger.error('Error saving file:', error);
