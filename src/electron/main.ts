@@ -1,6 +1,6 @@
 import {app, BrowserWindow, ipcMain, dialog, Menu, shell} from 'electron';
 import {isDev} from "./utils/util.js";
-import {getPreloadPath, getUIPath} from "./utils/pathResolver.js";
+import {getPreloadPath, getUIPath, getSettingsWindowPath} from "./utils/pathResolver.js";
 import {LithophaneProcessor} from "./core/lithophaneProcessor.js";
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { preferencesManager, type UserPreferences} from "./services/preferences.js";
@@ -9,11 +9,12 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { writeFile } from 'fs/promises';
 import { PathValidator } from './utils/pathValidator.js';
+import { logger } from './utils/logger.js';
 
 let mainWindow: BrowserWindow | null = null;
 
 app.on("ready", () => {
-    // Create the application menu
+    // Build the menu bar
     const template: Electron.MenuItemConstructorOptions[] = [
         {
             label: 'File',
@@ -22,7 +23,6 @@ app.on("ready", () => {
                     label: 'Select Image',
                     accelerator: 'CmdOrCtrl+O',
                     click: () => {
-                        // Trigger image selection
                         if (mainWindow) {
                             mainWindow.webContents.send('menu-select-image');
                         }
@@ -32,7 +32,6 @@ app.on("ready", () => {
                     label: 'Generate STL',
                     accelerator: 'CmdOrCtrl+G',
                     click: () => {
-                        // Trigger STL generation
                         if (mainWindow) {
                             mainWindow.webContents.send('menu-generate-stl');
                         }
@@ -108,7 +107,7 @@ app.on("ready", () => {
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
 
-    // Load saved window bounds or use defaults
+    // Restore window size/position
     const savedBounds = preferencesManager.getPreference('windowBounds');
     const windowBounds = savedBounds || { width: 1200, height: 800 };
 
@@ -126,7 +125,7 @@ app.on("ready", () => {
         },
     });
 
-    // Save window bounds on move/resize
+    // Remember window position/size (debounced)
     let saveBoundsTimeout: NodeJS.Timeout | null = null;
     const saveWindowBounds = () => {
         if (saveBoundsTimeout) {
@@ -142,13 +141,13 @@ app.on("ready", () => {
                     y: bounds.y,
                 });
             }
-        }, 500); // Debounce to avoid too many saves
+        }, 500); // Don't save too often
     };
 
     mainWindow.on('resized', saveWindowBounds);
     mainWindow.on('moved', saveWindowBounds);
 
-    // Save window bounds on close
+    // Save one last time on close
     mainWindow.on('close', () => {
         if (mainWindow) {
             const bounds = mainWindow.getBounds();
@@ -163,24 +162,22 @@ app.on("ready", () => {
 
     if(isDev()){
         mainWindow.loadURL('http://localhost:5523');
-        // Open DevTools in development
         mainWindow.webContents.openDevTools();
     }else{
         mainWindow.loadFile(getUIPath());
     }
 
-
-    // Lithophane processing handlers
+    // IPC handlers
     ipcMain.handle('processImage', async (_, imagePath: string, settings: any) => {
         const processor = LithophaneProcessor.getInstance();
         return await processor.processImage(imagePath, settings);
     });
 
     ipcMain.handle('generateSTL', async (_, imagePath: string, settings: any) => {
-        console.log('DEBUG: Main process received settings:', settings);
-        console.log('DEBUG: Main process resolutionMultiplier:', settings.resolutionMultiplier);
+        logger.debug('Main process received settings:', settings);
+        logger.debug('Main process resolutionMultiplier:', settings.resolutionMultiplier);
         
-        // Validate image path
+        // Check if the image file exists
         const pathValidation = PathValidator.validatePathExists(imagePath);
         if (!pathValidation.isValid) {
             return {
@@ -201,7 +198,7 @@ app.on("ready", () => {
         
         const processor = LithophaneProcessor.getInstance();
         
-        // Set up progress callback
+        // Send progress updates to the UI
         const progressCallback = (progress: number, message: string) => {
             if (mainWindow) {
                 mainWindow.webContents.send('stl-generation-progress', { progress, message });
@@ -211,7 +208,7 @@ app.on("ready", () => {
         return await processor.generateSTL(imagePath, settings, progressCallback);
     });
 
-    // File dialog handler for image selection
+    // File picker
     ipcMain.handle('selectImage', async () => {
         if (!mainWindow) return null;
         const result = await dialog.showOpenDialog(mainWindow, {
@@ -227,20 +224,20 @@ app.on("ready", () => {
         return null;
     });
 
-    // Image preview handler - convert image to base64
+    // Convert image to base64 for preview
     ipcMain.handle('getImagePreview', async (_, imagePath: string) => {
         try {
-            // Basic validation - check if file exists
+            // Make sure file exists
             if (!existsSync(imagePath)) {
-                console.error('Image file does not exist:', imagePath);
+                logger.error('Image file does not exist:', imagePath);
                 return null;
             }
             
-            // Validate extension (less strict - just check extension)
+            // Check file extension
             const ext = PathValidator.getFileExtension(imagePath).toLowerCase();
             const allowedExts = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
             if (!ext || !allowedExts.includes(ext)) {
-                console.error('Invalid image extension:', ext);
+                logger.error('Invalid image extension:', ext);
                 return null;
             }
             
@@ -249,40 +246,58 @@ app.on("ready", () => {
             const mimeType = getMimeType(imagePath);
             return `data:${mimeType};base64,${base64}`;
         } catch (error) {
-            console.error('Error reading image for preview:', error);
+            logger.error('Error reading image for preview:', error);
             return null;
         }
     });
 
-    // Handle dropped files - save temporarily and return path
+    // Save dropped file to temp directory
     ipcMain.handle('handleDroppedFile', async (_, fileDataBase64: string, fileName: string) => {
         try {
+            // Clean up the filename
+            const sanitizedFilename = PathValidator.sanitizeFilename(fileName);
+            if (!sanitizedFilename) {
+                throw new Error('Invalid filename');
+            }
+            
+            // Check extension
+            const extValidation = PathValidator.validatePath(sanitizedFilename, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']);
+            if (!extValidation.isValid) {
+                throw new Error(extValidation.error || 'Invalid file type');
+            }
+            
             const tempDir = tmpdir();
-            const tempFilename = `dropped_${Date.now()}_${fileName}`;
+            const tempFilename = `dropped_${Date.now()}_${sanitizedFilename}`;
             const tempPath = join(tempDir, tempFilename);
             
-            // Convert base64 string to Buffer and write to temp file
+            // Make sure path is safe
+            const pathValidation = PathValidator.validatePathInDirectory(tempPath, tempDir);
+            if (!pathValidation.isValid) {
+                throw new Error(pathValidation.error || 'Invalid path');
+            }
+            
+            // Write the file
             const buffer = Buffer.from(fileDataBase64, 'base64');
             await writeFile(tempPath, buffer);
             
             return tempPath;
         } catch (error) {
-            console.error('Error handling dropped file:', error);
+            logger.error('Error handling dropped file:', error);
             throw new Error(`Failed to save dropped file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     });
 
-    // Settings window handler
+    // Open settings window
     ipcMain.handle('openSettings', async () => {
         openSettingsWindow();
     });
 
-    // Theme management handlers (now using preferences)
+    // Theme stuff
     ipcMain.handle('getTheme', async () => {
         return preferencesManager.getPreference('theme');
     });
 
-    ipcMain.handle('setTheme', async (_, theme: 'light' | 'dark') => {
+    ipcMain.handle('setTheme', async (_, theme: 'light' | 'dark' | 'high-contrast') => {
         preferencesManager.setPreference('theme', theme);
         if (mainWindow) {
             mainWindow.webContents.send('theme-changed', theme);
@@ -334,7 +349,7 @@ app.on("ready", () => {
         return null;
     });
 
-    // Open file in slicer handler (accepts either file path or STL content)
+    // Open STL file in slicer (can pass file path or content)
     ipcMain.handle('openInSlicer', async (_, filePathOrContent: string, isContent: boolean = false, filename?: string) => {
         const slicerPath = preferencesManager.getPreference('slicerPath');
         
@@ -342,7 +357,7 @@ app.on("ready", () => {
             throw new Error('No slicer application selected. Please select a slicer in Settings.');
         }
 
-        // Validate slicer path
+        // Make sure slicer exists
         const slicerPathValidation = PathValidator.validatePathExists(slicerPath);
         if (!slicerPathValidation.isValid) {
             throw new Error(`Slicer application not found at: ${slicerPath}. Please update the slicer path in Settings.`);
@@ -351,13 +366,13 @@ app.on("ready", () => {
         let filePath: string;
 
         if (isContent) {
-            // Save STL content to temporary file
+            // Save content to temp file first
             const tempDir = tmpdir();
             const sanitizedFilename = filename ? PathValidator.sanitizeFilename(filename) : `lithophane_${Date.now()}.stl`;
             const finalFilename = sanitizedFilename.endsWith('.stl') ? sanitizedFilename : `${sanitizedFilename}.stl`;
             filePath = join(tempDir, finalFilename);
             
-            // Validate path
+            // Check path is safe
             const pathValidation = PathValidator.validatePathInDirectory(filePath, tempDir);
             if (!pathValidation.isValid) {
                 throw new Error(pathValidation.error || 'Invalid file path');
@@ -371,7 +386,7 @@ app.on("ready", () => {
         } else {
             filePath = filePathOrContent;
             
-            // Validate STL file path
+            // Check file exists
             const pathValidation = PathValidator.validatePathExists(filePath);
             if (!pathValidation.isValid) {
                 throw new Error(pathValidation.error || `STL file not found: ${filePath}`);
@@ -385,28 +400,27 @@ app.on("ready", () => {
 
         try {
             if (process.platform === 'darwin') {
-                // macOS: Use 'open' command for .app bundles
+                // macOS: use 'open' command
                 spawn('open', ['-a', slicerPath, filePath], { detached: true });
             } else if (process.platform === 'win32') {
-                // Windows: Use PowerShell to properly handle paths with spaces
-                // PowerShell handles paths with spaces much better than cmd.exe
+                // Windows: PowerShell handles spaces better than cmd
                 const psCommand = `Start-Process -FilePath "${slicerPath.replace(/"/g, '`"')}" -ArgumentList "${filePath.replace(/"/g, '`"')}"`;
                 exec(`powershell -Command "${psCommand}"`, (error: any) => {
                     if (error) {
-                        console.error('Error opening slicer:', error);
-                        // Fallback to cmd.exe method if PowerShell fails
+                        logger.error('Error opening slicer:', error);
+                        // Fallback to cmd.exe if PowerShell fails
                         const escapedSlicerPath = slicerPath.replace(/"/g, '""');
                         const escapedFilePath = filePath.replace(/"/g, '""');
                         const cmdCommand = `start "" "${escapedSlicerPath}" "${escapedFilePath}"`;
                         exec(cmdCommand, { shell: 'cmd.exe' }, (fallbackError: any) => {
                             if (fallbackError) {
-                                console.error('Fallback method also failed:', fallbackError);
+                                logger.error('Fallback method also failed:', fallbackError);
                             }
                         });
                     }
                 });
             } else {
-                // Linux: Execute directly
+                // Linux: just run it
                 spawn(slicerPath, [filePath], { detached: true });
             }
             return { success: true, filePath };
@@ -415,7 +429,7 @@ app.on("ready", () => {
         }
     });
 
-    // Send initial theme to renderer
+    // Apply theme when window loads
     mainWindow.webContents.on('did-finish-load', () => {
         if (mainWindow) {
             const theme = preferencesManager.getPreference('theme');
@@ -442,220 +456,8 @@ function openSettingsWindow() {
         },
     });
 
-    // Create settings HTML with theme toggle
-    const settingsHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Settings</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            padding: 2rem;
-            background: #f5f5f5;
-            color: #333;
-        }
-        [data-theme="dark"] body {
-            background: #1a1a1a;
-            color: #e0e0e0;
-        }
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        h1 {
-            margin-bottom: 2rem;
-            font-size: 1.75rem;
-        }
-        .setting-item {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        [data-theme="dark"] .setting-item {
-            background: #2a2a2a;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-        .setting-label {
-            font-weight: 600;
-            margin-bottom: 1rem;
-            display: block;
-        }
-        .theme-toggle {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .theme-toggle button {
-            flex: 1;
-            padding: 0.75rem 1.5rem;
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            background: white;
-            color: #667eea;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        [data-theme="dark"] .theme-toggle button {
-            background: #2a2a2a;
-            color: #8a9aff;
-            border-color: #8a9aff;
-        }
-        .theme-toggle button.active {
-            background: #667eea;
-            color: white;
-        }
-        [data-theme="dark"] .theme-toggle button.active {
-            background: #8a9aff;
-            color: #1a1a1a;
-        }
-        .theme-toggle button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        .theme-toggle button:active {
-            transform: translateY(0);
-        }
-        .slicer-path {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-        .slicer-path-display {
-            padding: 0.75rem;
-            background: #f8f9fa;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            color: #666;
-            word-break: break-all;
-            min-height: 2.5rem;
-            display: flex;
-            align-items: center;
-        }
-        [data-theme="dark"] .slicer-path-display {
-            background: #2a2a2a;
-            border-color: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.7);
-        }
-        .slicer-path-display.empty {
-            color: #999;
-            font-style: italic;
-        }
-        [data-theme="dark"] .slicer-path-display.empty {
-            color: rgba(255, 255, 255, 0.4);
-        }
-        .slicer-path button {
-            padding: 0.75rem 1.5rem;
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            background: #667eea;
-            color: white;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-weight: 500;
-        }
-        [data-theme="dark"] .slicer-path button {
-            background: #8a9aff;
-            border-color: #8a9aff;
-            color: #1a1a1a;
-        }
-        .slicer-path button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        .slicer-path button:active {
-            transform: translateY(0);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Settings</h1>
-        <div class="setting-item">
-            <label class="setting-label">Theme</label>
-            <div class="theme-toggle">
-                <button id="light-theme" class="active">☀️ Light</button>
-                <button id="dark-theme">🌙 Dark</button>
-            </div>
-        </div>
-        <div class="setting-item">
-            <label class="setting-label">Slicer Application</label>
-            <div class="slicer-path">
-                <div id="slicer-path-display" class="slicer-path-display empty">No slicer selected</div>
-                <button id="select-slicer-btn">Select Slicer...</button>
-            </div>
-        </div>
-    </div>
-    <script>
-        let currentTheme = 'light';
-        let currentSlicerPath = null;
-        
-        // Get initial theme
-        window.electron.getTheme().then(theme => {
-            currentTheme = theme;
-            updateUI();
-        });
-        
-        // Get initial slicer path
-        window.electron.getPreference('slicerPath').then(path => {
-            currentSlicerPath = path;
-            updateSlicerPath();
-        });
-        
-        // Listen for theme changes
-        window.electron.onThemeChanged((theme) => {
-            currentTheme = theme;
-            updateUI();
-        });
-        
-        function updateUI() {
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            document.getElementById('light-theme').classList.toggle('active', currentTheme === 'light');
-            document.getElementById('dark-theme').classList.toggle('active', currentTheme === 'dark');
-        }
-        
-        function updateSlicerPath() {
-            const display = document.getElementById('slicer-path-display');
-            if (currentSlicerPath) {
-                display.textContent = currentSlicerPath;
-                display.classList.remove('empty');
-            } else {
-                display.textContent = 'No slicer selected';
-                display.classList.add('empty');
-            }
-        }
-        
-        document.getElementById('light-theme').addEventListener('click', () => {
-            window.electron.setTheme('light');
-        });
-        
-        document.getElementById('dark-theme').addEventListener('click', () => {
-            window.electron.setTheme('dark');
-        });
-        
-        document.getElementById('select-slicer-btn').addEventListener('click', async () => {
-            try {
-                const path = await window.electron.selectSlicer();
-                if (path) {
-                    currentSlicerPath = path;
-                    updateSlicerPath();
-                }
-            } catch (error) {
-                console.error('Error selecting slicer:', error);
-            }
-        });
-    </script>
-</body>
-</html>`;
-    
-    settingsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(settingsHTML)}`);
+    // Load settings window from separate HTML file
+    settingsWindow.loadFile(getSettingsWindowPath());
 }
 
 function getMimeType(filePath: string): string {

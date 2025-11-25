@@ -1,0 +1,81 @@
+/* Dark Theme Styles */
+[data-theme="dark"] {
+  color-scheme: dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+}
+
+[data-theme="dark"] body {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: rgba(255, 255, 255, 0.87);
+}
+
+[data-theme="dark"] .app-header {
+  background: rgba(30, 30, 46, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .app-header p {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .image-preview-section {
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .no-image-placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="dark"] .settings-section {
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .settings-section h2 {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+[data-theme="dark"] .settings-content {
+  background: rgba(30, 30, 46, 0.95);
+}
+
+[data-theme="dark"] .setting-item label {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+[data-theme="dark"] .setting-item input,
+[data-theme="dark"] .setting-item select {
+  background: #2a2a3e;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.87);
+}
+
+[data-theme="dark"] .setting-info {
+  color: rgba(255, 255, 255, 0.7);
+  background: #2a2a3e;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .checkbox-label {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+[data-theme="dark"] .bottom-controls {
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .popup-content {
+  background: #2a2a3e;
+}
+
+[data-theme="dark"] .progress-bar-container {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .progress-text {
+  color: rgba(255, 255, 255, 0.9);
+}
+

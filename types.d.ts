@@ -35,7 +35,7 @@ export type ImageProcessingResult = {
 };
 
 export type UserPreferences = {
-    theme: 'light' | 'dark';
+    theme: 'light' | 'dark' | 'high-contrast';
     defaultThickness: string;
     defaultWidth: string;
     defaultHeight: string;
@@ -65,8 +65,8 @@ export type EventPayloadMapping ={
     generateSTL: ImageProcessingResult;
     selectImage: string | null;
     getImagePreview: string | null;
-    getTheme: 'light' | 'dark';
-    setTheme: 'light' | 'dark';
+    getTheme: 'light' | 'dark' | 'high-contrast';
+    setTheme: 'light' | 'dark' | 'high-contrast';
     openSettings: void;
     getPreferences: UserPreferences;
     getPreference: any;
@@ -85,8 +85,8 @@ declare global {
             generateSTL: (imagePath: string, settings: LithophaneSettings) => Promise<ImageProcessingResult>;
             selectImage: () => Promise<string | null>;
             getImagePreview: (imagePath: string) => Promise<string | null>;
-            getTheme: () => Promise<'light' | 'dark'>;
-            setTheme: (theme: 'light' | 'dark') => Promise<'light' | 'dark'>;
+    getTheme: () => Promise<'light' | 'dark' | 'high-contrast'>;
+    setTheme: (theme: 'light' | 'dark' | 'high-contrast') => Promise<'light' | 'dark' | 'high-contrast'>;
             openSettings: () => Promise<void>;
             getPreferences: () => Promise<UserPreferences>;
             getPreference: (key: keyof UserPreferences) => Promise<any>;
@@ -96,7 +96,7 @@ declare global {
             selectSlicer: () => Promise<string | null>;
             openInSlicer: (filePathOrContent: string, isContent?: boolean, filename?: string) => Promise<{ success: boolean; filePath?: string }>;
             handleDroppedFile: (fileDataBase64: string, fileName: string) => Promise<string>;
-            onThemeChanged: (callback: (theme: 'light' | 'dark') => void) => void;
+            onThemeChanged: (callback: (theme: 'light' | 'dark' | 'high-contrast') => void) => void;
             onMenuSelectImage: (callback: () => void) => void;
             onMenuGenerateSTL: (callback: () => void) => void;
             onSTLGenerationProgress: (callback: (progress: { progress: number; message: string }) => void) => void;

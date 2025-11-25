@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Settings</title>
+    <link rel="stylesheet" href="styles/settings.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Settings</h1>
+        <div class="setting-item">
+            <label class="setting-label">Theme</label>
+            <div class="theme-select">
+                <select id="theme-select">
+                    <option value="light">☀️ Light</option>
+                    <option value="dark">🌙 Dark</option>
+                    <option value="high-contrast">⚡ High Contrast</option>
+                </select>
+            </div>
+        </div>
+        <div class="setting-item">
+            <label class="setting-label">Slicer Application</label>
+            <div class="slicer-path">
+                <div id="slicer-path-display" class="slicer-path-display empty">No slicer selected</div>
+                <button id="select-slicer-btn">Select Slicer...</button>
+            </div>
+        </div>
+    </div>
+    <script src="settings.js"></script>
+</body>
+</html>
+

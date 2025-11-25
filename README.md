@@ -121,8 +121,20 @@ halflight/
 ├── src/
 │   ├── ui/                 # React frontend
 │   │   ├── App.tsx        # Main application component
-│   │   ├── App.css        # Styling and responsive design
-│   │   └── main.tsx       # React entry point
+│   │   ├── main.tsx       # React entry point
+│   │   └── styles/        # Modular CSS architecture
+│   │       ├── index.css  # Main styles entry point
+│   │       ├── base.css   # Base styles and reset
+│   │       ├── components/ # Component-specific styles
+│   │       │   ├── header.css
+│   │       │   ├── image-preview.css
+│   │       │   ├── settings.css
+│   │       │   ├── controls.css
+│   │       │   └── popup.css
+│   │       └── themes/    # Theme definitions
+│   │           ├── light.css
+│   │           ├── dark.css
+│   │           └── high-contrast.css
 │   └── electron/          # Electron backend
 │       ├── main.ts        # Main process entry point
 │       ├── preload.cts    # IPC bridge

@@ -14,3 +14,7 @@ export function getUIPath(){
     return path.join(app.getAppPath(), "/dist-react/index.html");
 }
 
+export function getSettingsWindowPath(){
+    return path.join(app.getAppPath(), isDev() ? 'src/electron/windows' : 'dist-electron/windows', 'settings.html');
+}
+
