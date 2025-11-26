@@ -1,6 +1,6 @@
 import {app, BrowserWindow, ipcMain, dialog, Menu, shell} from 'electron';
 import {isDev} from "./utils/util.js";
-import {getPreloadPath, getUIPath, getSettingsWindowPath} from "./utils/pathResolver.js";
+import {getPreloadPath, getUIPath, getSettingsWindowPath, getIconPath} from "./utils/pathResolver.js";
 import {LithophaneProcessor} from "./core/lithophaneProcessor.js";
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { preferencesManager, type UserPreferences} from "./services/preferences.js";
@@ -116,6 +116,7 @@ app.on("ready", () => {
         height: windowBounds.height,
         x: windowBounds.x,
         y: windowBounds.y,
+        icon: getIconPath(),
         webPreferences: {
             preload: getPreloadPath(),
             contextIsolation: true,

@@ -6,7 +6,7 @@
 }
 
 [data-theme="dark"] body {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, #0a2e3a 0%, #0d4a5c 100%);
   color: rgba(255, 255, 255, 0.87);
 }
 

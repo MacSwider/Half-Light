@@ -18,3 +18,11 @@ export function getSettingsWindowPath(){
     return path.join(app.getAppPath(), isDev() ? 'src/electron/windows' : 'dist-electron/windows', 'settings.html');
 }
 
+export function getIconPath(){
+    if (isDev()) {
+        return path.join(app.getAppPath(), 'src/ui/assets/icon.png');
+    } else {
+        return path.join(app.getAppPath(), 'dist-react/assets/icon.png');
+    }
+}
+

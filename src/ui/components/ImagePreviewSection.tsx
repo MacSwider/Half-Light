@@ -26,16 +26,16 @@ export const ImagePreviewSection: React.FC<ImagePreviewSectionProps> = ({
         <div className="image-preview">
           {isDragging && (
             <div className="drag-overlay">
-              <p>📥 Drop image here to replace</p>
+              <p>Drop image here to replace</p>
             </div>
           )}
           <img src={selectedImage} alt="Selected" />
         </div>
       ) : (
         <div className="no-image-placeholder">
-          <p>{isDragging ? '📥 Drop image here' : 'No image selected'}</p>
+          <p>{isDragging ? 'Drop image here' : 'No image selected'}</p>
           {!isDragging && (
-            <p className="drag-hint">💡 Drag and drop an image here or use the button below</p>
+            <p className="drag-hint">Drag and drop an image here or use the button below</p>
           )}
         </div>
       )}

@@ -15,16 +15,16 @@ A sophisticated desktop application that converts digital images into high-quali
 - **High-Resolution Processing**: Configurable resolution multiplier (1x-10x) for optimal quality
 - **Edge Enhancement**: Unsharp mask algorithm for crisp detail preservation
 - **Multiple Smoothing Methods**:
-  - **Geometric**: 5x5 kernel with distance weighting (original)
-  - **Laplacian**: Organic, flowing surfaces with curvature-based smoothing
-  - **None**: No smoothing for maximum detail preservation
+    - **Geometric**: 5x5 kernel with distance weighting (original)
+    - **Laplacian**: Organic, flowing surfaces with curvature-based smoothing
+    - **None**: No smoothing for maximum image preservation
 - **Brightness-to-Thickness Mapping**: Intelligent conversion from image brightness to 3D height
 
 ### 🖱️ **User Experience**
 - **Drag & Drop Support**: Simply drag and drop image files directly onto the preview area
 - **File Picker**: Traditional file selection via button or keyboard shortcut (Ctrl/Cmd+O)
 - **Image Preview**: Real-time preview of selected images with automatic dimension detection
-- **Theme Support**: Light and dark themes with persistent preferences
+- **Theme Support**: Light and dark and high-contrast themes with persistent preferences
 - **Settings Persistence**: All settings and preferences are automatically saved
 
 
@@ -39,7 +39,7 @@ A sophisticated desktop application that converts digital images into high-quali
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - Git
 
@@ -81,40 +81,43 @@ npm run dist:linux
 
 ## 📖 Usage Guide
 
-### Getting Started
+### Quick Start
 
-1. **Select an Image**
-   - Click the "📁 Choose Image File" button, or
-   - Use the keyboard shortcut `Ctrl+O` (Windows/Linux) or `Cmd+O` (macOS), or
-   - **Drag and drop** an image file directly onto the preview area
-   - Supported formats: JPG, JPEG, PNG, BMP, GIF
+1. **Select Image**: Drag & drop an image onto the preview area, or click "Choose Image File" (or press `Ctrl+O` / `Cmd+O`)
+    - Supported formats: JPG, JPEG, PNG, BMP, GIF
 
-2. **Configure Settings**
-   - **Dimensions**: Set width and height in millimeters (auto-filled from image dimensions)
-   - **Thickness**: Total lithophane thickness (0.1-10mm)
-   - **Layer Height**: Printing layer height (0.12, 0.16, or 0.2mm)
-   - **Layer Number**: Number of layers (automatically calculated from thickness)
-   - **Resolution Multiplier**: Quality multiplier (1-10x) - higher values create smoother surfaces
-   - **First Layer Height**: Thickness of the brightest layer (0.1-5mm)
-   - **Smoothing Method**: Choose between Geometric, Laplacian, or None
-   - **Smoothing Strength**: Adjust smoothing intensity (0.01-1.0)
-   - **Negative/Invert**: Toggle to invert brightness mapping
-   - **Allow Frame**: Add a border around the lithophane
+2. **Configure Settings**:
+    - **Dimensions**: Width and height in mm (auto-filled from image)
+    - **Thickness**: Total lithophane thickness (0.1-10mm) - thinner = more detail but fragile
+    - **Layer Height**: Your printer's layer height (0.12, 0.16, or 0.2mm)
+    - **Resolution Multiplier**: Quality setting (1-10x) - start with 4x for best balance
+    - **First Layer Height**: Thickness of brightest layer (0.1-5mm) - typically 0.8-1.0mm
+    - **Smoothing Method**:
+        - **Laplacian**: Best for photos/portraits (organic surfaces)
+        - **Geometric**: Best for technical images/text (preserves edges)
+        - **None**: Maximum image preservation
+    - **Smoothing Strength**: 0.1 recommended, adjust as needed (0.01-1.0)
+    - **Negative/Invert**: Invert brightness mapping
+    - **Allow Frame**: Add 2mm border around lithophane
 
-3. **Generate STL**
-   - Click "🖨️ Generate STL" or use `Ctrl+G` (Windows/Linux) or `Cmd+G` (macOS)
-   - Wait for processing to complete
-   - Once generated, you can:
-     - **Save STL File**: Download the STL file to your computer
-     - **Open in Slicer**: Directly open the STL in your configured slicer application
+3. **Generate STL**: Click "Generate STL" (or press `Ctrl+G` / `Cmd+G`) and wait for processing
 
-### Tips for Best Results
+4. **Save or Open**: Download the STL file or open directly in your slicer (configure slicer path in Settings → Preferences)
 
-- **Image Quality**: Higher resolution images produce better results
-- **Contrast**: Images with good contrast work best for lithophanes
-- **Resolution Multiplier**: Start with 4x for a good balance of quality and file size
-- **Smoothing**: Use Laplacian smoothing for organic subjects, Geometric for technical images
-- **Thickness**: Thinner lithophanes (0.8-1.2mm) show more detail but are more fragile
+### Recommended Settings
+
+**Portraits/Photos**: Resolution 4x, Laplacian smoothing (0.1), Thickness 1.0mm, First Layer 0.8mm  
+**Technical/Text**: Resolution 6x, Geometric smoothing (0.2), Thickness 1.2mm, First Layer 0.8mm
+
+### Tips
+
+- Use high-resolution, high-contrast images (1000x1000+ pixels)
+- Black & white images often work better than color
+- Print vertically with white/light filament, 100% infill, slow speed (30-50mm/s)
+- Try to print with a brim to make sure the the model will not seperate
+- **Too dark?** Increase First Layer Height or reduce thickness
+- **Not enough detail?** Increase Resolution Multiplier or use "None" smoothing
+- **Too rough?** Increase Resolution Multiplier or use Laplacian smoothing
 
 ```
 halflight/

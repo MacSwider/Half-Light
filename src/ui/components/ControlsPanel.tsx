@@ -21,7 +21,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     <section className="bottom-controls">
       <div className="image-selection">
         <button className="select-image-btn" onClick={onImageSelect}>
-          📁 Choose Image File
+          Choose Image File
         </button>
         {selectedImage && (
           <button className="change-image-btn" onClick={onImageSelect}>
@@ -36,7 +36,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
           onClick={onGenerateSTL}
           disabled={!imagePath || isProcessing || hasValidationErrors}
         >
-          🖨️ Generate STL
+          Generate STL
         </button>
       </div>
     </section>
