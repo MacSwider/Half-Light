@@ -1,11 +1,13 @@
 const isDevelopment = import.meta.env.DEV;
 
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-}
+export const LogLevel = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3,
+} as const;
+
+type LogLevel = typeof LogLevel[keyof typeof LogLevel];
 
 class Logger {
   private isDevelopment: boolean;

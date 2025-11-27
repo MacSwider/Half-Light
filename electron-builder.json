@@ -1,7 +1,8 @@
 {
   "appId": "com.m-swider.HalfLight",
+  "productName": "Half-Light",
   "files": ["dist-electron","dist-react"],
-  "extra_Resources": ["dist-electron/preload.cjs"],
+  "extraResources": ["dist-electron/preload.cjs"],
   "icon": "./src/ui/assets/icon.png",
   "mac": {
     "target": "dmg"

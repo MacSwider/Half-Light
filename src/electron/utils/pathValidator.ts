@@ -1,4 +1,4 @@
-import { normalize, resolve, isAbsolute } from 'path';
+import { resolve } from 'path';
 import { existsSync } from 'fs';
 
 /**

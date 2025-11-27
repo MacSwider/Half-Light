@@ -1,4 +1,4 @@
-import {app, BrowserWindow, ipcMain, dialog, Menu, shell} from 'electron';
+import {app, BrowserWindow, ipcMain, dialog, Menu} from 'electron';
 import {isDev} from "./utils/util.js";
 import {getPreloadPath, getUIPath, getSettingsWindowPath, getIconPath} from "./utils/pathResolver.js";
 import {LithophaneProcessor} from "./core/lithophaneProcessor.js";
@@ -116,6 +116,7 @@ app.on("ready", () => {
         height: windowBounds.height,
         x: windowBounds.x,
         y: windowBounds.y,
+        title: 'Half-Light',
         icon: getIconPath(),
         webPreferences: {
             preload: getPreloadPath(),

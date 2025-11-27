@@ -1,7 +1,4 @@
 import sharp from 'sharp';
-import { writeFileSync } from 'fs';
-import { join } from 'path';
-import { app } from 'electron';
 import type { LithophaneSettings, ImageProcessingResult } from '../../../types.js';
 import { applySmoothing } from '../services/smoothing/smoothingAlgorithms.js';
 import { logger } from '../utils/logger.js';

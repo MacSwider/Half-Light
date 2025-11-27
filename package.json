@@ -1,7 +1,9 @@
 {
   "name": "halflight",
+  "version": "1.0.0",
+  "description": "A sophisticated desktop application that converts digital images into high-quality STL files for 3D printing lithophanes",
+  "author": "MacSwider",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -11,7 +13,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "transpile:electron": "tsc --project src/electron/tsconfig.json",
+    "transpile:electron": "tsc --project src/electron/tsconfig.json && npm run copy:windows",
+    "copy:windows": "node -e \"const fs=require('fs');const path=require('path');const src='src/electron/windows';const dest='dist-electron/windows';if(!fs.existsSync(dest))fs.mkdirSync(dest,{recursive:true});if(!fs.existsSync(path.join(dest,'styles')))fs.mkdirSync(path.join(dest,'styles'),{recursive:true});['settings.html','settings.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));fs.copyFileSync(path.join(src,'styles/settings.css'),path.join(dest,'styles/settings.css'));\"",
     "dist:mac": "npm run transpile:electron && npm run build && electron-builder --mac --arm64",
     "dist:win": "npm run transpile:electron && npm run build && electron-builder --win --x64",
     "dist:linux": "npm run transpile:electron && npm run build &&electron-builder --linux --x64"

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import type { ImageProcessingResult } from '../../../types';
 import { logger } from '../utils/logger';
 
