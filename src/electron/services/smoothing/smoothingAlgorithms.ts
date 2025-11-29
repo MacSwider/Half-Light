@@ -1,15 +1,16 @@
 // Smoothing algorithms for height maps
+// Different methods give different results - geometric preserves edges, laplacian is smoother/more organic
 import { logger } from '../../utils/logger.js';
 
 export type SmoothingMethod = 'geometric' | 'laplacian' | 'none';
 
 export interface SmoothingOptions {
     method: SmoothingMethod;
-    strength?: number;
-    passes?: number;
+    strength?: number;  // Smoothing strength (0.01-1.0, typically 0.1)
+    passes?: number;    // Number of smoothing iterations (typically 2-3)
 }
 
-// Apply the chosen smoothing method
+// Apply the chosen smoothing method - modifies heightMap in-place
 export function applySmoothing(
     heightMap: number[][], 
     width: number, 
@@ -32,6 +33,8 @@ export function applySmoothing(
 }
 
 // Geometric smoothing - uses 5x5 kernel with distance weighting
+// Center pixel gets weight 8, neighbors weighted by inverse distance
+// Good for preserving edges - works well for technical images/text
 function applyGeometricSmoothing(
     heightMap: number[][], 
     width: number, 
@@ -82,7 +85,9 @@ function applyGeometricSmoothing(
 }
 
 // Laplacian smoothing - smooths based on local curvature
-// Gives more organic, flowing surfaces
+// Gives more organic, flowing surfaces - good for photos/portraits
+// Formula: H' = H - strength × (4H - sum of neighbors)
+// The (4H - neighbors) part is the Laplacian (curvature measure)
 function applyLaplacianSmoothing(
     heightMap: number[][], 
     width: number, 

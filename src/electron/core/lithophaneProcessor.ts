@@ -187,18 +187,25 @@ export class LithophaneProcessor {
         return { stlContent };
     }
 
-    // Convert raw image data to brightness values and sharpen edges
+    // Convert image pixels to brightness values and sharpen edges
+    // Using unsharp mask - tried a few edge detection methods but this works best for lithophanes
+    // The key is that lithophanes need sharp height transitions to show detail when backlit
     private processImageData(imageData: Buffer, width: number, height: number): Float32Array {
         const sourceBrightness = new Float32Array(width * height);
+        // Convert 0-255 to 0.0-1.0 for easier math
         for (let i = 0; i < width * height && i < imageData.length; i++) {
             sourceBrightness[i] = Math.min(1, Math.max(0, imageData[i] / 255));
         }
 
-        // Unsharp mask: amount=1.0, radius=1 (3x3 kernel), threshold=0.02 to skip noise
+        // Unsharp mask: amount=1.0 works well, radius=1 gives nice sharp edges without artifacts
+        // Threshold at 0.02 filters out noise - tried lower values but got weird artifacts
         return this.applyUnsharpMask(sourceBrightness, width, height, 1.0, 1, 0.02);
     }
 
-    // Map brightness to height using discrete layers (works better for 3D printing)
+    // Map brightness to height using discrete layers
+    // Originally tried continuous height mapping but discrete works way better for 3D printing
+    // Printers work in layers anyway, so this aligns with how they actually print
+    // Plus it makes smaller STL files and gives better control over detail
     private createHeightMap(
         enhancedBrightness: Float32Array,
         internalWidth: number,
@@ -207,7 +214,7 @@ export class LithophaneProcessor {
     ): number[][] {
         const { thickness, firstLayerHeight } = settings;
         
-        // Find min/max for normalization
+        // Find min/max to normalize brightness - need full dynamic range
         const brightnessValues: number[] = [];
         for (let i = 0; i < enhancedBrightness.length; i++) {
             brightnessValues.push(enhancedBrightness[i]);
@@ -222,7 +229,8 @@ export class LithophaneProcessor {
         
         logger.debug(`Original brightness range: min=${minBrightness.toFixed(3)}, max=${maxBrightness.toFixed(3)}`);
         
-        // Set up discrete layers (first layer is thicker, rest are evenly spaced)
+        // Set up layers - first layer is thicker (brightest areas), rest spread evenly
+        // Default to 14 layers if not specified - found this gives good detail without being too many
         const firstLayerThickness = firstLayerHeight;
         const remainingThickness = thickness - firstLayerHeight;
         const totalUserLayers = typeof settings.numberOfLayers === 'number' && settings.numberOfLayers > 0
@@ -238,7 +246,7 @@ export class LithophaneProcessor {
         logger.debug(`- Thickness increment per layer: ${layerThicknessIncrement.toFixed(3)}mm`);
         logger.debug(`- Total discrete levels: ${numberOfDiscreteLayers + 1} (including first layer)`);
         
-        // Create height map
+        // Build the height map
         const heightMap: number[][] = [];
         for (let y = 0; y < internalHeight; y++) {
             heightMap[y] = [];
@@ -248,19 +256,20 @@ export class LithophaneProcessor {
                 if (pixelIndex < enhancedBrightness.length) {
                     const brightness = enhancedBrightness[pixelIndex];
                     
-                    // Invert: bright pixels = thin (layer 0), dark pixels = thick
-                    let normalizedBrightness = 1 - ((brightness - minBrightness) / (maxBrightness - minBrightness));
+                    // Normalize to 0-1, then invert (bright = thin, dark = thick)
+                    let normalizedBrightness = (brightness - minBrightness) / (maxBrightness - minBrightness);
+                    normalizedBrightness = 1 - normalizedBrightness;
                     
-                    // Flip if negative mode is on
+                    // Negative mode flips it back
                     if (settings.negative) {
                         normalizedBrightness = 1 - normalizedBrightness;
                     }
                     
-                    // Figure out which layer this pixel belongs to
+                    // Figure out which layer this brightness maps to
                     const layerIndex = Math.floor(normalizedBrightness * (numberOfDiscreteLayers + 1));
                     const clampedLayerIndex = Math.min(layerIndex, numberOfDiscreteLayers);
                     
-                    // Calculate the actual height for this layer
+                    // Calculate height - layer 0 is thinnest, then increments
                     const heightValue = clampedLayerIndex === 0
                         ? firstLayerThickness
                         : firstLayerThickness + (clampedLayerIndex * layerThicknessIncrement);
@@ -275,7 +284,9 @@ export class LithophaneProcessor {
         return heightMap;
     }
 
-    // Smooth the height map and make sure it fits the requested thickness range
+    // Smooth the height map, then normalize to exact thickness range
+    // Smoothing can shift the min/max values, so we need to remap to [firstLayerHeight, thickness]
+    // This ensures consistent output no matter which smoothing method is used
     private applySmoothingAndNormalize(
         heightMap: number[][],
         internalWidth: number,
@@ -285,11 +296,11 @@ export class LithophaneProcessor {
         const { thickness, firstLayerHeight } = settings;
         const firstLayerThickness = firstLayerHeight;
         
-        // Smooth it out
+        // Apply smoothing (modifies heightMap in-place)
         const smoothingOptions = settings.smoothing || { method: 'geometric', passes: 2 };
         applySmoothing(heightMap, internalWidth, internalHeight, smoothingOptions);
 
-        // Make sure the thickness range is correct after smoothing
+        // Find what the min/max actually are after smoothing
         let currentMin = Infinity;
         let currentMax = -Infinity;
         for (let y = 0; y < internalHeight; y++) {
@@ -300,11 +311,13 @@ export class LithophaneProcessor {
             }
         }
         
+        // Scale from current range to target range
         const targetMin = firstLayerThickness;
         const targetMax = thickness;
         const srcSpan = currentMax - currentMin;
         const dstSpan = targetMax - targetMin;
         
+        // Linear scale if we have a valid range
         if (srcSpan > 1e-6 && dstSpan > 0) {
             const scale = dstSpan / srcSpan;
             for (let y = 0; y < internalHeight; y++) {
@@ -313,7 +326,7 @@ export class LithophaneProcessor {
                 }
             }
         } else {
-            // Edge case: just clamp everything
+            // Edge case - just clamp everything (shouldn't happen but handle it)
             for (let y = 0; y < internalHeight; y++) {
                 for (let x = 0; x < internalWidth; x++) {
                     heightMap[y][x] = Math.min(targetMax, Math.max(targetMin, heightMap[y][x]));
@@ -351,7 +364,9 @@ export class LithophaneProcessor {
         return { vertices, normals };
     }
 
-    // Create the top surface triangles from the height map
+    // Generate top surface triangles from height map
+    // Each height map cell becomes a quad, then split into 2 triangles (STL needs triangles)
+    // Coordinates centered at origin: x/y go from -width/2 to +width/2, z is height from map
     private addTopSurface(
         vertices: number[],
         normals: number[],
@@ -364,6 +379,7 @@ export class LithophaneProcessor {
     ): void {
         for (let y = 0; y < internalHeight - 1; y++) {
             for (let x = 0; x < internalWidth - 1; x++) {
+                // Get 4 corners of this quad, convert pixel coords to mm
                 const x1 = (x / resolutionMultiplier - width / 2);
                 const y1 = (y / resolutionMultiplier - height / 2);
                 const z1 = heightMap[y][x];
@@ -380,7 +396,7 @@ export class LithophaneProcessor {
                 const y4 = ((y + 1) / resolutionMultiplier - height / 2);
                 const z4 = heightMap[y + 1][x + 1];
                 
-                // Split quad into two triangles
+                // Split quad into 2 triangles
                 vertices.push(x1, y1, z1, x2, y2, z2, x3, y3, z3);
                 normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
                 
@@ -659,7 +675,9 @@ export class LithophaneProcessor {
     }
 
     // Unsharp mask for edge enhancement
-    // amount=how much to boost edges, radius=blur size (1=3x3), threshold=ignore small changes
+    // Formula: enhanced = original + amount × (original - blurred)
+    // The (original - blurred) part is the high-frequency detail (edges)
+    // Adding it back makes edges sharper - important for lithophanes since they rely on height changes
     private applyUnsharpMask(
         src: Float32Array,
         width: number,
@@ -670,22 +688,31 @@ export class LithophaneProcessor {
     ): Float32Array {
         const blurred = this.gaussianBlurFloat(src, width, height, radius);
         const out = new Float32Array(width * height);
+        
         for (let i = 0; i < out.length; i++) {
+            // Get the high-frequency part (edges/details)
             const highFreq = src[i] - blurred[i];
+            
+            // Threshold filters out noise - only enhance real edges
             const boosted = Math.abs(highFreq) < threshold ? 0 : highFreq;
+            
+            // Add it back amplified
             const enhanced = src[i] + amount * boosted;
+            
+            // Clamp to valid range
             out[i] = Math.min(1, Math.max(0, enhanced));
         }
         return out;
     }
 
-    // Simple Gaussian blur (separable, so it's fast)
-    // radius=1: [1,2,1]/4, radius=2: [1,4,6,4,1]/16
+    // Gaussian blur using separable kernel (much faster than 2D convolution)
+    // Blur horizontally first, then vertically - same result but O(n*k) instead of O(n*k²)
+    // Using binomial coefficients [1,2,1] and [1,4,6,4,1] which approximate Gaussian
     private gaussianBlurFloat(src: Float32Array, width: number, height: number, radius: number): Float32Array {
         const tmp = new Float32Array(width * height);
         const dst = new Float32Array(width * height);
 
-        // Pick the kernel
+        // Pick kernel - binomial coefficients approximate Gaussian
         let kernel: number[];
         let norm: number;
         if (radius <= 1) {
@@ -726,7 +753,9 @@ export class LithophaneProcessor {
     }
 
     // Convert vertices/normals to ASCII STL format
-    // This took me forever to get right - STL format is picky about normals
+    // STL format: each triangle has a normal + 3 vertices
+    // Using 6 decimal places for precision - enough for mm-scale models
+    // Note: many slicers recalculate normals anyway, but STL spec requires them
     private verticesToSTL(vertices: number[], normals: number[]): string {
         let stl = 'solid lithophane\n';
         

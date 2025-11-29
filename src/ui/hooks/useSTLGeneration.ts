@@ -65,10 +65,10 @@ export const useSTLGeneration = (
       const stlSettings = {
         width: parseFloat(settings.width),
         height: parseFloat(settings.height),
-        depth: 3,
+        depth: 3, // Hardcoded,unused field, kept for type compatibility
         thickness: parseFloat(settings.thickness),
         firstLayerHeight: parseFloat(settings.firstLayerHeight),
-        quality: 'high' as const,
+        quality: 'high' as const, // only used in logging, doesn't affect processing
         frameEnabled: settings.allowFrame,
         frameWidth: 2.0,
         numberOfLayers: parseInt(settings.layerNumber),
