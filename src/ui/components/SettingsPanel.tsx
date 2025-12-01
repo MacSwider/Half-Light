@@ -47,6 +47,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings }) => {
         </div>
 
         <div className="setting-item">
+          <label htmlFor="lockAspectRatio" className="checkbox-label">
+            <input
+              id="lockAspectRatio"
+              type="checkbox"
+              checked={settings.lockAspectRatio}
+              onChange={(e) => settings.setLockAspectRatio(e.target.checked)}
+            />
+            Lock Ratio
+          </label>
+          <div className="setting-info">
+            <small>
+              Maintain the original image proportions
+            </small>
+          </div>
+        </div>
+
+        <div className="setting-item">
           <label htmlFor="layerHeight">Layer Height (mm):</label>
           <select
             id="layerHeight"

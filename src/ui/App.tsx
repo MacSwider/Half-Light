@@ -27,7 +27,8 @@ function App() {
     settings.setWidth,
     settings.setHeight,
     (result) => stlGenerationRef.current?.setResult(result),
-    (show) => stlGenerationRef.current?.setShowPopup(show)
+    (show) => stlGenerationRef.current?.setShowPopup(show),
+    settings.setAspectRatio
   );
 
   const stlGeneration = useSTLGeneration(imageHandling.imagePath, settings);

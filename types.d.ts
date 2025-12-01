@@ -47,6 +47,7 @@ export type UserPreferences = {
     defaultSmoothingStrength: string;
     defaultAllowFrame: boolean;
     defaultNegative: boolean;
+    defaultLockAspectRatio: boolean;
     windowBounds?: {
         width: number;
         height: number;

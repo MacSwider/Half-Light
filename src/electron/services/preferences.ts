@@ -16,6 +16,7 @@ export interface UserPreferences {
     defaultSmoothingStrength: string;
     defaultAllowFrame: boolean;
     defaultNegative: boolean;
+    defaultLockAspectRatio: boolean;
     
     // Window state
     windowBounds?: {
@@ -46,6 +47,7 @@ const defaultPreferences: UserPreferences = {
     defaultSmoothingStrength: '0.1',
     defaultAllowFrame: false,
     defaultNegative: false,
+    defaultLockAspectRatio: false,
 };
 
 class PreferencesManager {

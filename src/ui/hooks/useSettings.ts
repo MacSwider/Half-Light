@@ -13,6 +13,7 @@ export interface Settings {
   smoothingMethod: string;
   smoothingStrength: string;
   negative: boolean;
+  lockAspectRatio: boolean;
 }
 
 export interface SettingsErrors {
@@ -36,6 +37,24 @@ export const useSettings = () => {
   const [smoothingMethod, setSmoothingMethod] = useState<string>('laplacian');
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
   const [negative, setNegative] = useState<boolean>(false);
+  const [lockAspectRatio, setLockAspectRatio] = useState<boolean>(false);
+  const aspectRatioRef = useRef<number | null>(null);
+
+  // Handle lock aspect ratio toggle
+  const handleLockAspectRatioChange = useCallback(
+    (locked: boolean) => {
+      setLockAspectRatio(locked);
+      // When enabling the lock, capture the current aspect ratio
+      if (locked) {
+        const widthNum = parseFloat(width);
+        const heightNum = parseFloat(height);
+        if (!isNaN(widthNum) && !isNaN(heightNum) && widthNum > 0 && heightNum > 0) {
+          aspectRatioRef.current = widthNum / heightNum;
+        }
+      }
+    },
+    [width, height]
+  );
 
   // Auto-calculate thickness from layer height/number
   const calculateThickness = useCallback(
@@ -186,6 +205,53 @@ export const useSettings = () => {
     [validateFirstLayerHeight]
   );
 
+  // Set aspect ratio from current width/height
+  const setAspectRatio = useCallback((w: string, h: string) => {
+    const widthNum = parseFloat(w);
+    const heightNum = parseFloat(h);
+    if (!isNaN(widthNum) && !isNaN(heightNum) && widthNum > 0 && heightNum > 0) {
+      aspectRatioRef.current = widthNum / heightNum;
+    }
+  }, []);
+
+  // Handle width change with aspect ratio locking
+  const handleWidthChange = useCallback(
+    (value: string) => {
+      if (lockAspectRatio && aspectRatioRef.current !== null) {
+        const widthNum = parseFloat(value);
+        if (!isNaN(widthNum) && widthNum > 0) {
+          const newHeight = (widthNum / aspectRatioRef.current).toFixed(0);
+          setWidth(value);
+          setHeight(newHeight);
+        } else {
+          setWidth(value);
+        }
+      } else {
+        setWidth(value);
+      }
+    },
+    [lockAspectRatio]
+  );
+
+  // Handle height change with aspect ratio locking
+  const handleHeightChange = useCallback(
+    (value: string) => {
+      if (lockAspectRatio && aspectRatioRef.current !== null) {
+        const heightNum = parseFloat(value);
+        if (!isNaN(heightNum) && heightNum > 0) {
+          const newWidth = (heightNum * aspectRatioRef.current).toFixed(0);
+          setHeight(value);
+          setWidth(newWidth);
+        } else {
+          setHeight(value);
+        }
+      } else {
+        setHeight(value);
+      }
+    },
+    [lockAspectRatio]
+  );
+
   // Auto-save preferences (debounced to avoid too many writes)
   const savePreferencesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -205,9 +271,10 @@ export const useSettings = () => {
           defaultResolutionMultiplier: resolutionMultiplier,
           defaultFirstLayerHeight: firstLayerHeight,
           defaultSmoothingMethod: smoothingMethod,
-          defaultSmoothingStrength: smoothingStrength,
-          defaultAllowFrame: allowFrame,
-          defaultNegative: negative,
+        defaultSmoothingStrength: smoothingStrength,
+        defaultAllowFrame: allowFrame,
+        defaultNegative: negative,
+        defaultLockAspectRatio: lockAspectRatio,
         });
       } catch (error) {
         logger.error('Error saving preferences:', error);
@@ -225,6 +292,7 @@ export const useSettings = () => {
     smoothingStrength,
     allowFrame,
     negative,
+    lockAspectRatio,
   ]);
 
   return {
@@ -243,11 +311,14 @@ export const useSettings = () => {
     smoothingMethod,
     smoothingStrength,
     negative,
+    lockAspectRatio,
     // Setters
     setThickness: handleThicknessChange,
-    setWidth,
-    setHeight,
+    setWidth: handleWidthChange,
+    setHeight: handleHeightChange,
     setAllowFrame,
+    setLockAspectRatio: handleLockAspectRatioChange,
+    setAspectRatio,
     setLayerHeight: handleLayerHeightChange,
     setLayerNumber: handleLayerNumberChange,
     setResolutionMultiplier: handleResolutionMultiplierChange,
@@ -272,6 +343,7 @@ export const useSettings = () => {
       if (prefs.defaultSmoothingStrength) setSmoothingStrength(prefs.defaultSmoothingStrength);
       if (prefs.defaultAllowFrame !== undefined) setAllowFrame(prefs.defaultAllowFrame);
       if (prefs.defaultNegative !== undefined) setNegative(prefs.defaultNegative);
+      if (prefs.defaultLockAspectRatio !== undefined) setLockAspectRatio(prefs.defaultLockAspectRatio);
     },
     // Save function
     savePreferences,

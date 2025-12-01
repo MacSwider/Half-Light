@@ -6,7 +6,8 @@ export const useImageHandling = (
   setWidth: (width: string) => void,
   setHeight: (height: string) => void,
   setResult: (result: ImageProcessingResult | null) => void,
-  setShowPopup: (show: boolean) => void
+  setShowPopup: (show: boolean) => void,
+  setAspectRatio?: (width: string, height: string) => void
 ) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imagePath, setImagePath] = useState<string>('');
@@ -30,8 +31,14 @@ export const useImageHandling = (
         // Auto-fill width/height from image dimensions
         const img = new Image();
         img.onload = () => {
-          setWidth(img.width.toString());
-          setHeight(img.height.toString());
+          const widthStr = img.width.toString();
+          const heightStr = img.height.toString();
+          setWidth(widthStr);
+          setHeight(heightStr);
+          // Set aspect ratio when image loads
+          if (setAspectRatio) {
+            setAspectRatio(widthStr, heightStr);
+          }
         };
         img.src = previewUrl;
       } else {
@@ -42,7 +49,7 @@ export const useImageHandling = (
       setSelectedImage(null);
     }
     setResult(null);
-  }, [setWidth, setHeight, setResult]);
+  }, [setWidth, setHeight, setResult, setAspectRatio]);
 
   const handleImageSelect = useCallback(async () => {
     try {
