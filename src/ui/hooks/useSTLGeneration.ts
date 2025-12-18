@@ -54,6 +54,42 @@ export const useSTLGeneration = (
       });
       return;
     }
+    if (!settings.validateLayerNumber(settings.layerNumber)) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: settings.layerNumberError || 'Invalid layer number value',
+      });
+      return;
+    }
+    if (!settings.validateWidth(settings.width)) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: settings.widthError || 'Invalid width value',
+      });
+      return;
+    }
+    if (!settings.validateHeight(settings.height)) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: settings.heightError || 'Invalid height value',
+      });
+      return;
+    }
+    if (settings.smoothingMethod !== 'none' && !settings.validateSmoothingStrength(settings.smoothingStrength)) {
+      setShowPopup(true);
+      setResult({
+        success: false,
+        message: 'Validation Error',
+        error: settings.smoothingStrengthError || 'Invalid smoothing strength value',
+      });
+      return;
+    }
 
     setIsProcessing(true);
     setResult(null);
@@ -111,9 +147,17 @@ export const useSTLGeneration = (
     settings.validateThickness,
     settings.validateResolutionMultiplier,
     settings.validateFirstLayerHeight,
+    settings.validateLayerNumber,
+    settings.validateWidth,
+    settings.validateHeight,
+    settings.validateSmoothingStrength,
     settings.thicknessError,
     settings.resolutionMultiplierError,
     settings.firstLayerHeightError,
+    settings.layerNumberError,
+    settings.widthError,
+    settings.heightError,
+    settings.smoothingStrengthError,
   ]);
 
   const handleSaveFile = useCallback(async () => {

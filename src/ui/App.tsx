@@ -121,7 +121,11 @@ function App() {
   const hasValidationErrors =
     !!settings.thicknessError ||
     !!settings.resolutionMultiplierError ||
-    !!settings.firstLayerHeightError;
+    !!settings.firstLayerHeightError ||
+    !!settings.layerNumberError ||
+    !!settings.widthError ||
+    !!settings.heightError ||
+    !!settings.smoothingStrengthError;
 
   return (
     <div className="app">

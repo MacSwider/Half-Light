@@ -28,8 +28,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings }) => {
             max="1000"
             value={settings.width}
             onChange={(e) => settings.setWidth(e.target.value)}
+            className={settings.widthError ? 'error' : ''}
             placeholder="300"
           />
+          {settings.widthError && (
+            <span className="error-message">{settings.widthError}</span>
+          )}
         </div>
 
         <div className="setting-item">
@@ -42,8 +46,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings }) => {
             max="1000"
             value={settings.height}
             onChange={(e) => settings.setHeight(e.target.value)}
+            className={settings.heightError ? 'error' : ''}
             placeholder="290"
           />
+          {settings.heightError && (
+            <span className="error-message">{settings.heightError}</span>
+          )}
         </div>
 
         <div className="setting-item">
@@ -85,11 +93,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings }) => {
             type="number"
             step="1"
             min="1"
-            max="1000"
             value={settings.layerNumber}
             onChange={(e) => settings.setLayerNumber(e.target.value)}
+            className={settings.layerNumberError ? 'error' : ''}
             placeholder="4"
           />
+          {settings.layerNumberError && (
+            <span className="error-message">{settings.layerNumberError}</span>
+          )}
         </div>
 
         <div className="setting-item">
@@ -186,8 +197,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings }) => {
               max="1.0"
               value={settings.smoothingStrength}
               onChange={(e) => settings.setSmoothingStrength(e.target.value)}
+              className={settings.smoothingStrengthError ? 'error' : ''}
               placeholder="0.1"
             />
+            {settings.smoothingStrengthError && (
+              <span className="error-message">{settings.smoothingStrengthError}</span>
+            )}
             <div className="setting-info">
               <small>Higher values = more smoothing (0.01-1.0)</small>
             </div>

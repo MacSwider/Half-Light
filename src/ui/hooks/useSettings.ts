@@ -20,22 +20,30 @@ export interface SettingsErrors {
   thickness: string;
   resolutionMultiplier: string;
   firstLayerHeight: string;
+  layerNumber: string;
+  width: string;
+  height: string;
+  smoothingStrength: string;
 }
 
 export const useSettings = () => {
   const [thickness, setThickness] = useState<string>('0.8');
   const [thicknessError, setThicknessError] = useState<string>('');
   const [width, setWidth] = useState<string>('300');
+  const [widthError, setWidthError] = useState<string>('');
   const [height, setHeight] = useState<string>('290');
+  const [heightError, setHeightError] = useState<string>('');
   const [allowFrame, setAllowFrame] = useState<boolean>(false);
   const [layerHeight, setLayerHeight] = useState<string>('0.2');
   const [layerNumber, setLayerNumber] = useState<string>('8');
+  const [layerNumberError, setLayerNumberError] = useState<string>('');
   const [resolutionMultiplier, setResolutionMultiplier] = useState<string>('4');
   const [resolutionMultiplierError, setResolutionMultiplierError] = useState<string>('');
   const [firstLayerHeight, setFirstLayerHeight] = useState<string>('0.8');
   const [firstLayerHeightError, setFirstLayerHeightError] = useState<string>('');
   const [smoothingMethod, setSmoothingMethod] = useState<string>('laplacian');
   const [smoothingStrength, setSmoothingStrength] = useState<string>('0.1');
+  const [smoothingStrengthError, setSmoothingStrengthError] = useState<string>('');
   const [negative, setNegative] = useState<boolean>(false);
   const [lockAspectRatio, setLockAspectRatio] = useState<boolean>(false);
   const aspectRatioRef = useRef<number | null>(null);
@@ -144,6 +152,74 @@ export const useSettings = () => {
     return true;
   }, []);
 
+  const validateLayerNumber = useCallback((value: string): boolean => {
+    const numValue = parseInt(value);
+    if (isNaN(numValue)) {
+      setLayerNumberError('Layer number must be a number');
+      return false;
+    }
+    if (numValue < 1) {
+      setLayerNumberError('Layer number must be at least 1');
+      return false;
+    }
+    setLayerNumberError('');
+    return true;
+  }, []);
+
+  const validateWidth = useCallback((value: string): boolean => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+      setWidthError('Width must be a number');
+      return false;
+    }
+    if (numValue < 1) {
+      setWidthError('Width must be at least 1mm');
+      return false;
+    }
+    if (numValue > 300) {
+      setWidthError('Width must be at most 300mm');
+      return false;
+    }
+    setWidthError('');
+    return true;
+  }, []);
+
+  const validateHeight = useCallback((value: string): boolean => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+      setHeightError('Height must be a number');
+      return false;
+    }
+    if (numValue < 1) {
+      setHeightError('Height must be at least 1mm');
+      return false;
+    }
+    if (numValue > 300) {
+      setHeightError('Height must be at most 300mm');
+      return false;
+    }
+    setHeightError('');
+    return true;
+  }, []);
+
+  const validateSmoothingStrength = useCallback((value: string): boolean => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+      setSmoothingStrengthError('Smoothing strength must be a number');
+      return false;
+    }
+    if (numValue < 0.01) {
+      setSmoothingStrengthError('Smoothing strength must be at least 0.01');
+      return false;
+    }
+    if (numValue > 1.0) {
+      setSmoothingStrengthError('Smoothing strength must be at most 1.0');
+      return false;
+    }
+    setSmoothingStrengthError('');
+    return true;
+  }, []);
+
   const handleThicknessChange = useCallback(
     (value: string) => {
       setThickness(value);
@@ -173,12 +249,17 @@ export const useSettings = () => {
   const handleLayerNumberChange = useCallback(
     (value: string) => {
       setLayerNumber(value);
+      if (value.trim() === '') {
+        setLayerNumberError('');
+      } else {
+        validateLayerNumber(value);
+      }
       // Recalculate thickness
       const newThickness = calculateThickness(layerHeight, value);
       setThickness(newThickness);
       setThicknessError(''); // Clear errors
     },
-    [calculateThickness, layerHeight]
+    [calculateThickness, layerHeight, validateLayerNumber]
   );
 
   const handleResolutionMultiplierChange = useCallback(
@@ -205,6 +286,18 @@ export const useSettings = () => {
     [validateFirstLayerHeight]
   );
 
+  const handleSmoothingStrengthChange = useCallback(
+    (value: string) => {
+      setSmoothingStrength(value);
+      if (value.trim() === '') {
+        setSmoothingStrengthError('');
+      } else {
+        validateSmoothingStrength(value);
+      }
+    },
+    [validateSmoothingStrength]
+  );
+
   // Set aspect ratio from current width/height
   const setAspectRatio = useCallback((w: string, h: string) => {
     const widthNum = parseFloat(w);
@@ -217,6 +310,11 @@ export const useSettings = () => {
   // Handle width change with aspect ratio locking
   const handleWidthChange = useCallback(
     (value: string) => {
+      if (value.trim() === '') {
+        setWidthError('');
+      } else {
+        validateWidth(value);
+      }
       if (lockAspectRatio && aspectRatioRef.current !== null) {
         const widthNum = parseFloat(value);
         if (!isNaN(widthNum) && widthNum > 0) {
@@ -230,12 +328,17 @@ export const useSettings = () => {
         setWidth(value);
       }
     },
-    [lockAspectRatio]
+    [lockAspectRatio, validateWidth]
   );
 
   // Handle height change with aspect ratio locking
   const handleHeightChange = useCallback(
     (value: string) => {
+      if (value.trim() === '') {
+        setHeightError('');
+      } else {
+        validateHeight(value);
+      }
       if (lockAspectRatio && aspectRatioRef.current !== null) {
         const heightNum = parseFloat(value);
         if (!isNaN(heightNum) && heightNum > 0) {
@@ -249,7 +352,7 @@ export const useSettings = () => {
         setHeight(value);
       }
     },
-    [lockAspectRatio]
+    [lockAspectRatio, validateHeight]
   );
 
   // Auto-save preferences (debounced to avoid too many writes)
@@ -300,16 +403,20 @@ export const useSettings = () => {
     thickness,
     thicknessError,
     width,
+    widthError,
     height,
+    heightError,
     allowFrame,
     layerHeight,
     layerNumber,
+    layerNumberError,
     resolutionMultiplier,
     resolutionMultiplierError,
     firstLayerHeight,
     firstLayerHeightError,
     smoothingMethod,
     smoothingStrength,
+    smoothingStrengthError,
     negative,
     lockAspectRatio,
     // Setters
@@ -324,12 +431,16 @@ export const useSettings = () => {
     setResolutionMultiplier: handleResolutionMultiplierChange,
     setFirstLayerHeight: handleFirstLayerHeightChange,
     setSmoothingMethod,
-    setSmoothingStrength,
+    setSmoothingStrength: handleSmoothingStrengthChange,
     setNegative,
     // Validation functions
     validateThickness,
     validateResolutionMultiplier,
     validateFirstLayerHeight,
+    validateLayerNumber,
+    validateWidth,
+    validateHeight,
+    validateSmoothingStrength,
     // Load saved preferences
     loadFromPreferences: (prefs: any) => {
       if (prefs.defaultThickness) setThickness(prefs.defaultThickness);
