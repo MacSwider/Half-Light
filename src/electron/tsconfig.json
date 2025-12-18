@@ -6,6 +6,9 @@
     "target": "ESNext",
     // tell TypeScript to require ESM Syntax as input (including .js file import)
     "module": "ESNext",
+    //For Ubuntu tester
+    "skipLibCheck": true,
+
     "moduleResolution": "bundler",
     // define where to put generated JS
     "outDir": "../../dist-electron",
