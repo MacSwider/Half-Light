@@ -29,9 +29,9 @@ export interface SettingsErrors {
 export const useSettings = () => {
   const [thickness, setThickness] = useState<string>('0.8');
   const [thicknessError, setThicknessError] = useState<string>('');
-  const [width, setWidth] = useState<string>('300');
+  const [width, setWidth] = useState<string>('250');
   const [widthError, setWidthError] = useState<string>('');
-  const [height, setHeight] = useState<string>('290');
+  const [height, setHeight] = useState<string>('250');
   const [heightError, setHeightError] = useState<string>('');
   const [allowFrame, setAllowFrame] = useState<boolean>(false);
   const [layerHeight, setLayerHeight] = useState<string>('0.2');
@@ -176,8 +176,8 @@ export const useSettings = () => {
       setWidthError('Width must be at least 1mm');
       return false;
     }
-    if (numValue > 300) {
-      setWidthError('Width must be at most 300mm');
+    if (numValue > 250) {
+      setWidthError('Width must be at most 250 mm');
       return false;
     }
     setWidthError('');
@@ -195,7 +195,7 @@ export const useSettings = () => {
       return false;
     }
     if (numValue > 300) {
-      setHeightError('Height must be at most 300mm');
+      setHeightError('Height must be at most 250 mm');
       return false;
     }
     setHeightError('');
