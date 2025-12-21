@@ -25,7 +25,7 @@ class Logger {
     return true;
   }
 
-  private formatMessage(level: string, ...args: any[]): string {
+  private formatMessage(level: string, ...args: unknown[]): string {
     const timestamp = new Date().toISOString();
     return `[${timestamp}] [${level}] ${args.map((arg) => {
       if (typeof arg === 'object') {
@@ -39,25 +39,25 @@ class Logger {
     }).join(' ')}`;
   }
 
-  debug(...args: any[]): void {
+  debug(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
       console.log(this.formatMessage('DEBUG', ...args));
     }
   }
 
-  info(...args: any[]): void {
+  info(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.INFO)) {
       console.info(this.formatMessage('INFO', ...args));
     }
   }
 
-  warn(...args: any[]): void {
+  warn(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.WARN)) {
       console.warn(this.formatMessage('WARN', ...args));
     }
   }
 
-  error(...args: any[]): void {
+  error(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.ERROR)) {
       console.error(this.formatMessage('ERROR', ...args));
     }

@@ -76,7 +76,7 @@ class PreferencesManager {
     setPreferences(preferences: Partial<UserPreferences>): void {
         for (const [key, value] of Object.entries(preferences)) {
             if (value !== undefined) {
-                this.store.set(key as keyof UserPreferences, value as any);
+                this.store.set(key as keyof UserPreferences, value as UserPreferences[keyof UserPreferences]);
             }
         }
     }

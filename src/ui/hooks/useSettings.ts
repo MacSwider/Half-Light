@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { logger } from '../utils/logger';
+import type { UserPreferences } from '../../../types';
 
 export interface Settings {
   thickness: string;
@@ -442,7 +443,7 @@ export const useSettings = () => {
     validateHeight,
     validateSmoothingStrength,
     // Load saved preferences
-    loadFromPreferences: (prefs: any) => {
+    loadFromPreferences: (prefs: UserPreferences) => {
       if (prefs.defaultThickness) setThickness(prefs.defaultThickness);
       if (prefs.defaultWidth) setWidth(prefs.defaultWidth);
       if (prefs.defaultHeight) setHeight(prefs.defaultHeight);

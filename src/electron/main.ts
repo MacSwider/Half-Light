@@ -10,6 +10,7 @@ import { tmpdir } from 'os';
 import { writeFile } from 'fs/promises';
 import { PathValidator } from './utils/pathValidator.js';
 import { logger } from './utils/logger.js';
+import type { LithophaneSettings } from '../../types.js';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -170,12 +171,12 @@ app.on("ready", () => {
     }
 
     // IPC handlers
-    ipcMain.handle('processImage', async (_, imagePath: string, settings: any) => {
+    ipcMain.handle('processImage', async (_, imagePath: string, settings: LithophaneSettings) => {
         const processor = LithophaneProcessor.getInstance();
         return await processor.processImage(imagePath, settings);
     });
 
-    ipcMain.handle('generateSTL', async (_, imagePath: string, settings: any) => {
+    ipcMain.handle('generateSTL', async (_, imagePath: string, settings: LithophaneSettings) => {
         logger.debug('Main process received settings:', settings);
         logger.debug('Main process resolutionMultiplier:', settings.resolutionMultiplier);
         
@@ -316,8 +317,8 @@ app.on("ready", () => {
         return preferencesManager.getPreference(key);
     });
 
-    ipcMain.handle('setPreference', async (_, key: keyof UserPreferences, value: any) => {
-        preferencesManager.setPreference(key, value);
+    ipcMain.handle('setPreference', async (_, key: keyof UserPreferences, value: UserPreferences[keyof UserPreferences]) => {
+        preferencesManager.setPreference(key as keyof UserPreferences, value as UserPreferences[keyof UserPreferences]);
         return value;
     });
 
@@ -382,8 +383,9 @@ app.on("ready", () => {
             
             try {
                 writeFileSync(filePath, filePathOrContent, 'utf8');
-            } catch (error: any) {
-                throw new Error(`Failed to save STL file: ${error.message}`);
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                throw new Error(`Failed to save STL file: ${errorMessage}`);
             }
         } else {
             filePath = filePathOrContent;
@@ -407,14 +409,14 @@ app.on("ready", () => {
             } else if (process.platform === 'win32') {
                 // Windows: PowerShell handles spaces better than cmd
                 const psCommand = `Start-Process -FilePath "${slicerPath.replace(/"/g, '`"')}" -ArgumentList "${filePath.replace(/"/g, '`"')}"`;
-                exec(`powershell -Command "${psCommand}"`, (error: any) => {
+                exec(`powershell -Command "${psCommand}"`, (error: unknown) => {
                     if (error) {
                         logger.error('Error opening slicer:', error);
                         // Fallback to cmd.exe if PowerShell fails
                         const escapedSlicerPath = slicerPath.replace(/"/g, '""');
                         const escapedFilePath = filePath.replace(/"/g, '""');
                         const cmdCommand = `start "" "${escapedSlicerPath}" "${escapedFilePath}"`;
-                        exec(cmdCommand, { shell: 'cmd.exe' }, (fallbackError: any) => {
+                        exec(cmdCommand, { shell: 'cmd.exe' }, (fallbackError: unknown) => {
                             if (fallbackError) {
                                 logger.error('Fallback method also failed:', fallbackError);
                             }
@@ -426,8 +428,9 @@ app.on("ready", () => {
                 spawn(slicerPath, [filePath], { detached: true });
             }
             return { success: true, filePath };
-        } catch (error: any) {
-            throw new Error(`Failed to open slicer: ${error.message}`);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            throw new Error(`Failed to open slicer: ${errorMessage}`);
         }
     });
 

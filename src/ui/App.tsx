@@ -10,6 +10,7 @@ import { useSettings } from './hooks/useSettings';
 import { useImageHandling } from './hooks/useImageHandling';
 import { useSTLGeneration } from './hooks/useSTLGeneration';
 import { logger } from './utils/logger';
+import type { ImageProcessingResult } from '../../types';
 
 
 function App() {
@@ -19,7 +20,7 @@ function App() {
   // Workaround: need a ref because stlGeneration depends on imageHandling
   // but imageHandling needs callbacks from stlGeneration - circular dependency fun!
   const stlGenerationRef = useRef<{
-    setResult: (result: any) => void;
+    setResult: (result: ImageProcessingResult | null) => void;
     setShowPopup: (show: boolean) => void;
   } | null>(null);
 

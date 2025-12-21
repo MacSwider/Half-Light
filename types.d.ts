@@ -70,8 +70,8 @@ export type EventPayloadMapping ={
     setTheme: 'light' | 'dark' | 'high-contrast';
     openSettings: void;
     getPreferences: UserPreferences;
-    getPreference: any;
-    setPreference: any;
+    getPreference: UserPreferences[keyof UserPreferences];
+    setPreference: UserPreferences[keyof UserPreferences];
     setPreferences: UserPreferences;
     resetPreferences: UserPreferences;
     selectSlicer: string | null;
@@ -90,8 +90,8 @@ declare global {
     setTheme: (theme: 'light' | 'dark' | 'high-contrast') => Promise<'light' | 'dark' | 'high-contrast'>;
             openSettings: () => Promise<void>;
             getPreferences: () => Promise<UserPreferences>;
-            getPreference: (key: keyof UserPreferences) => Promise<any>;
-            setPreference: (key: keyof UserPreferences, value: any) => Promise<any>;
+            getPreference: <K extends keyof UserPreferences>(key: K) => Promise<UserPreferences[K]>;
+            setPreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => Promise<UserPreferences[K]>;
             setPreferences: (preferences: Partial<UserPreferences>) => Promise<UserPreferences>;
             resetPreferences: () => Promise<UserPreferences>;
             selectSlicer: () => Promise<string | null>;
