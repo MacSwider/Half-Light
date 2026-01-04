@@ -42,6 +42,8 @@ function App() {
     };
   }, [stlGeneration.setResult, stlGeneration.setShowPopup]);
 
+  const isInitialLoadRef = useRef(true);
+
   // Load saved preferences when app starts
   useEffect(() => {
     const loadPreferences = async () => {
@@ -52,8 +54,14 @@ function App() {
         const theme = prefs.theme;
         document.documentElement.setAttribute('data-theme', theme);
 
-        // Restore settings
+        // Restore settings (this will trigger state changes, but we'll skip saving)
+        isInitialLoadRef.current = true;
         settings.loadFromPreferences(prefs);
+        
+        // Mark initial load as complete after a short delay to let all state updates settle
+        setTimeout(() => {
+          isInitialLoadRef.current = false;
+        }, 100);
 
         // Try to load the last image
         if (prefs.lastImagePath) {
@@ -65,6 +73,7 @@ function App() {
         }
       } catch (error) {
         logger.error('Error loading preferences:', error);
+        isInitialLoadRef.current = false;
       }
     };
 
@@ -78,17 +87,32 @@ function App() {
 
   // Auto-save preferences (debounced so we don't spam writes)
   useEffect(() => {
-    // Skip the initial load
-    if (menuListenersRegistered.current) {
-      settings.savePreferences();
+    // Skip saving during initial load
+    if (isInitialLoadRef.current) {
+      return;
     }
+
+    settings.savePreferences();
 
     return () => {
       if (settings.savePreferencesTimeoutRef.current) {
         clearTimeout(settings.savePreferencesTimeoutRef.current);
       }
     };
-  }, [settings.savePreferences]);
+  }, [
+    settings.thickness,
+    settings.width,
+    settings.height,
+    settings.layerHeight,
+    settings.layerNumber,
+    settings.resolutionMultiplier,
+    settings.firstLayerHeight,
+    settings.smoothingMethod,
+    settings.smoothingStrength,
+    settings.allowFrame,
+    settings.negative,
+    settings.lockAspectRatio,
+  ]);
 
   // Hook up menu shortcuts
   useEffect(() => {
